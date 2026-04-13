@@ -1,0 +1,6 @@
+# Dependencies
+node_modules/
+
+# SAM
+backend/.aws-sam/
+backend/samconfig.yaml

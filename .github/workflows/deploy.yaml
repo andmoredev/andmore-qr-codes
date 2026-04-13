@@ -1,0 +1,76 @@
+name: Deploy
+run-name: Deploy - ${{ github.actor }}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy.yaml'
+
+concurrency:
+  group: deploy-${{ github.actor }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: andmore-qr-codes
+  NODE_VERSION: '24'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.PIPELINE_EXECUTION_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Generate samconfig.yaml from template
+        working-directory: backend
+        env:
+          STACK_NAME: ${{ env.STACK_NAME }}
+          ENV_HASH: ${{ github.sha }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ARTIFACTS_BUCKET_NAME: ${{ secrets.ARTIFACTS_BUCKET_NAME }}
+        run: envsubst < samconfig.yaml.template > samconfig.yaml
+
+      - name: Build and deploy
+        working-directory: backend
+        run: |
+          npm ci
+          npm install -g esbuild
+
+          sam build
+
+          sam deploy \
+            --s3-bucket "${{ secrets.ARTIFACTS_BUCKET_NAME }}" \
+            --role-arn "${{ secrets.CLOUDFORMATION_EXECUTION_ROLE }}" \
+            --no-fail-on-empty-changeset
+
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
+            --output text)
+
+          echo "## Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "**API URL:** $API_URL" >> $GITHUB_STEP_SUMMARY

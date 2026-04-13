@@ -1,0 +1,34 @@
+version: 0.1
+
+default:
+  global:
+    parameters:
+      stack_name: ${STACK_NAME}
+      region: ${AWS_REGION}
+      capabilities: CAPABILITY_IAM
+      confirm_changeset: false
+      s3_prefix: andmore-qr-codes
+      disable_rollback: false
+
+  build:
+    parameters:
+      cached: true
+      parallel: true
+
+  deploy:
+    parameters:
+      stack_name: ${STACK_NAME}
+      region: ${AWS_REGION}
+      capabilities: CAPABILITY_IAM
+      confirm_changeset: false
+      s3_prefix: andmore-qr-codes
+      disable_rollback: false
+      parameter_overrides:
+        - ArtifactsBucketName=$ARTIFACTS_BUCKET_NAME
+        - EnvironmentHash=$ENV_HASH
+
+  delete:
+    parameters:
+      stack_name: ${STACK_NAME}
+      region: ${AWS_REGION}
+      no_prompts: true

@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: QR Code Generator - Serverless infrastructure
+
+Parameters:
+  ArtifactsBucketName:
+    Type: String
+    Description: S3 bucket name for deployment artifacts
+
+  EnvironmentHash:
+    Type: String
+    Description: A hash of the current environment
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: nodejs24.x
+    Architectures:
+      - arm64
+    Tracing: Active
+
+Resources:
+  GenerateQrFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: generate-qr.handler
+      Description: Generates a QR code with an embedded center image
+      Events:
+        PostGenerate:
+          Type: HttpApi
+          Properties:
+            Path: /generate
+            Method: POST
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - generate-qr.js
+
+Outputs:
+  ApiUrl:
+    Description: QR code generation endpoint
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/generate"
