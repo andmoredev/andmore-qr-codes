@@ -57,7 +57,7 @@ jobs:
       - name: Build and deploy
         working-directory: backend
         run: |
-          npm ci
+          npm ci --prefix functions
           npm install -g esbuild
 
           sam build
