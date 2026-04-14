@@ -32,18 +32,11 @@ exports.handler = async (event) => {
 
   const { url, image } = body;
 
-  if (!url || !image) {
+  if (!url) {
     return {
       statusCode: 400,
-      body: JSON.stringify({ error: 'Both "url" and "image" (base64) are required' }),
+      body: JSON.stringify({ error: '"url" is required' }),
     };
-  }
-
-  let imageBuffer;
-  try {
-    imageBuffer = Buffer.from(image, 'base64');
-  } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid base64 image data' }) };
   }
 
   try {
@@ -53,6 +46,21 @@ exports.handler = async (event) => {
       width: QR_SIZE,
       margin: 1,
     });
+
+    if (!image) {
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qrCode: qrBuffer.toString('base64') }),
+      };
+    }
+
+    let imageBuffer;
+    try {
+      imageBuffer = Buffer.from(image, 'base64');
+    } catch {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Invalid base64 image data' }) };
+    }
 
     const qrImage = await Jimp.read(qrBuffer);
     const logo = await Jimp.read(imageBuffer);
