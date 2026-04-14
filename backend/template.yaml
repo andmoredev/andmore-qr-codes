@@ -14,6 +14,7 @@ Parameters:
 Globals:
   Function:
     Timeout: 30
+    MemorySize: 512
     Runtime: nodejs24.x
     Architectures:
       - arm64
