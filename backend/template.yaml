@@ -48,6 +48,13 @@ Resources:
                 - xray:GetSamplingRules
                 - xray:GetSamplingTargets
               Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - generate-qr.js
 
 Outputs:
   ApiUrl:
