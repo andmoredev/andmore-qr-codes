@@ -58,7 +58,6 @@ jobs:
         working-directory: backend
         run: |
           npm ci --prefix functions
-          npm install -g esbuild
 
           sam build
 
