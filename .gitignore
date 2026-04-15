@@ -5,3 +5,6 @@ node_modules/
 backend/.aws-sam/
 backend/samconfig.yaml
 test/
+
+# Frontend build
+frontend/dist/
