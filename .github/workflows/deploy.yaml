@@ -2,6 +2,12 @@ name: Deploy
 run-name: Deploy - ${{ github.actor }}
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/deploy.yaml'
   push:
     branches: [main]
     paths:
