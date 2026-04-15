@@ -34,6 +34,8 @@ export class AuthService {
     });
   }
 
+  // Resolves on success, rejects on failure.
+  // Rejects with { code: 'NewPasswordRequired', cognitoUser } when a new password must be set.
   async signIn(email: string, password: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const user = new CognitoUser({ Username: email, Pool: userPool });
@@ -42,7 +44,16 @@ export class AuthService {
       user.authenticateUser(auth, {
         onSuccess: () => resolve(),
         onFailure: (err) => reject(err),
-        newPasswordRequired: () => reject(new Error('New password required. Please contact support.')),
+        newPasswordRequired: () => reject({ code: 'NewPasswordRequired', cognitoUser: user }),
+      });
+    });
+  }
+
+  completeNewPassword(cognitoUser: CognitoUser, newPassword: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      cognitoUser.completeNewPasswordChallenge(newPassword, {}, {
+        onSuccess: () => resolve(),
+        onFailure: (err) => reject(err),
       });
     });
   }
