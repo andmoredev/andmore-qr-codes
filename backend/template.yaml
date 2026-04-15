@@ -68,7 +68,6 @@ Resources:
         AllowMethods:
           - GET
           - POST
-          - OPTIONS
       Auth:
         Authorizers:
           CognitoAuth:
