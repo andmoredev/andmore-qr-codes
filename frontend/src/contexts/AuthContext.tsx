@@ -1,48 +1,56 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { isAuthenticated, getUserEmail, signOut as cognitoSignOut } from '../services/auth';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { authService, UserInfo } from '../services/auth';
 
-interface AuthState {
-  authenticated: boolean;
-  email: string | null;
-  loading: boolean;
-}
-
-interface AuthContextValue extends AuthState {
+interface AuthContextType {
+  user: UserInfo | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
   signOut: () => void;
-  refresh: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ authenticated: false, email: null, loading: true });
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const refresh = async () => {
+  const refreshUser = async () => {
     try {
-      const auth = await isAuthenticated();
-      const email = auth ? await getUserEmail() : null;
-      setState({ authenticated: auth, email, loading: false });
+      const isAuth = await authService.isAuthenticated();
+      if (isAuth) {
+        const userInfo = await authService.getUserInfo();
+        setUser(userInfo);
+      } else {
+        setUser(null);
+      }
     } catch {
-      setState({ authenticated: false, email: null, loading: false });
+      setUser(null);
     }
   };
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    const checkAuth = async () => {
+      await refreshUser();
+      setIsLoading(false);
+    };
+    checkAuth();
+  }, []);
 
   const signOut = () => {
-    cognitoSignOut();
-    setState({ authenticated: false, email: null, loading: false });
+    authService.signOut();
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, signOut, refresh }}>
+    <AuthContext.Provider value={{ user, isLoading, isAuthenticated: user !== null, signOut, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
+  const context = useContext(AuthContext);
+  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider');
+  return context;
 }

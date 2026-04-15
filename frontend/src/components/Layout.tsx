@@ -3,7 +3,7 @@ import { QrCode, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { email, signOut } = useAuth();
+  const { user, signOut } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
@@ -14,7 +14,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <span className="font-semibold text-foreground">QR Generator</span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-text-muted hidden sm:block">{email}</span>
+            <span className="text-sm text-text-muted hidden sm:block">{user?.email}</span>
             <button
               onClick={signOut}
               className="flex items-center gap-1.5 text-sm text-text-muted hover:text-foreground transition-colors duration-150 cursor-pointer"

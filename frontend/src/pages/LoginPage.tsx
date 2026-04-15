@@ -1,12 +1,12 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QrCode } from 'lucide-react';
-import { signIn } from '../services/auth';
+import { authService } from '../services/auth';
 import { useAuth } from '../contexts/AuthContext';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { refresh } = useAuth();
+  const { refreshUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -17,11 +17,18 @@ export function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await signIn(email, password);
-      await refresh();
+      await authService.signIn(email, password);
+      await refreshUser();
       navigate('/');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign in failed');
+    } catch (err: unknown) {
+      const cognitoErr = err as { code?: string; message?: string };
+      if (cognitoErr.code === 'NotAuthorizedException') {
+        setError('Incorrect email or password');
+      } else if (cognitoErr.code === 'UserNotFoundException') {
+        setError('No account found with this email');
+      } else {
+        setError(cognitoErr.message ?? 'Sign in failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -73,9 +80,7 @@ export function LoginPage() {
             />
           </div>
 
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           <button
             type="submit"

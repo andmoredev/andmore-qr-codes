@@ -1,8 +1,8 @@
 import {
-  CognitoUser,
   CognitoUserPool,
-  CognitoUserSession,
+  CognitoUser,
   AuthenticationDetails,
+  CognitoUserSession,
 } from 'amazon-cognito-identity-js';
 import { config } from '../config';
 
@@ -11,60 +11,78 @@ const userPool = new CognitoUserPool({
   ClientId: config.cognito.clientId,
 });
 
-export interface AuthTokens {
-  idToken: string;
-  accessToken: string;
+export interface UserInfo {
+  email: string;
+  sub: string;
+  emailVerified: boolean;
 }
 
-export function signIn(email: string, password: string): Promise<AuthTokens> {
-  return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: userPool });
-    const auth = new AuthenticationDetails({ Username: email, Password: password });
+export class AuthService {
+  getCurrentUser(): CognitoUser | null {
+    return userPool.getCurrentUser();
+  }
 
-    user.authenticateUser(auth, {
-      onSuccess(session) {
-        resolve({
-          idToken: session.getIdToken().getJwtToken(),
-          accessToken: session.getAccessToken().getJwtToken(),
-        });
-      },
-      onFailure(err) {
-        reject(err);
-      },
+  async getCurrentSession(): Promise<CognitoUserSession | null> {
+    const currentUser = this.getCurrentUser();
+    if (!currentUser) return null;
+
+    return new Promise((resolve, reject) => {
+      currentUser.getSession((err: Error | null, session: CognitoUserSession | null) => {
+        if (err) { reject(err); return; }
+        resolve(session && session.isValid() ? session : null);
+      });
     });
-  });
-}
+  }
 
-export function signOut(): void {
-  userPool.getCurrentUser()?.signOut();
-}
+  async signIn(email: string, password: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const user = new CognitoUser({ Username: email, Pool: userPool });
+      const auth = new AuthenticationDetails({ Username: email, Password: password });
 
-export function getCurrentSession(): Promise<CognitoUserSession> {
-  return new Promise((resolve, reject) => {
-    const user = userPool.getCurrentUser();
-    if (!user) return reject(new Error('No user'));
-    user.getSession((err: Error | null, session: CognitoUserSession | null) => {
-      if (err || !session) return reject(err ?? new Error('No session'));
-      resolve(session);
+      user.authenticateUser(auth, {
+        onSuccess: () => resolve(),
+        onFailure: (err) => reject(err),
+        newPasswordRequired: () => reject(new Error('New password required. Please contact support.')),
+      });
     });
-  });
-}
+  }
 
-export async function getIdToken(): Promise<string> {
-  const session = await getCurrentSession();
-  return session.getIdToken().getJwtToken();
-}
+  signOut(): void {
+    this.getCurrentUser()?.signOut();
+  }
 
-export async function isAuthenticated(): Promise<boolean> {
-  try {
-    const session = await getCurrentSession();
-    return session.isValid();
-  } catch {
-    return false;
+  async getIdToken(): Promise<string | null> {
+    try {
+      const session = await this.getCurrentSession();
+      return session?.getIdToken().getJwtToken() ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getUserInfo(): Promise<UserInfo | null> {
+    try {
+      const session = await this.getCurrentSession();
+      if (!session) return null;
+      const payload = session.getIdToken().payload;
+      return {
+        email: payload.email as string,
+        sub: payload.sub as string,
+        emailVerified: payload.email_verified === 'true' || payload.email_verified === true,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async isAuthenticated(): Promise<boolean> {
+    try {
+      const session = await this.getCurrentSession();
+      return session !== null && session.isValid();
+    } catch {
+      return false;
+    }
   }
 }
 
-export async function getUserEmail(): Promise<string> {
-  const session = await getCurrentSession();
-  return session.getIdToken().payload.email as string;
-}
+export const authService = new AuthService();

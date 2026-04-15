@@ -1,9 +1,9 @@
 import { config } from '../config';
-import { getIdToken } from './auth';
+import { authService } from './auth';
 
 async function authHeaders(): Promise<Record<string, string>> {
-  const token = await getIdToken();
-  return { Authorization: token, 'Content-Type': 'application/json' };
+  const token = await authService.getIdToken();
+  return { Authorization: token ?? '', 'Content-Type': 'application/json' };
 }
 
 export interface GenerateResult {
