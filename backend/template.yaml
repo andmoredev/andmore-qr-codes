@@ -77,11 +77,6 @@ Resources:
               audience:
                 - !Ref QrCodesUserPoolClient
         DefaultAuthorizer: CognitoAuth
-      DefinitionBody:
-        'Fn::Transform':
-          Name: AWS::Include
-          Parameters:
-            Location: ./openapi.yaml
 
   # ── Storage ───────────────────────────────────────────────────────────────
 
