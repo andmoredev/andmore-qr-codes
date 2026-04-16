@@ -32,6 +32,12 @@ paths:
           $ref: '#/components/responses/ClientError'
         '500':
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        payloadFormatVersion: "2.0"
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateQrFunction.Arn}/invocations"
 
   /history:
     get:
@@ -49,6 +55,12 @@ paths:
                 $ref: '#/components/schemas/HistoryResponse'
         '500':
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        payloadFormatVersion: "2.0"
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetHistoryFunction.Arn}/invocations"
 
 components:
   schemas:
