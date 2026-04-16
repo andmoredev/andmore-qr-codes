@@ -3,17 +3,6 @@ info:
   title: QR Code Generator API
   description: Generate QR codes with optional center logos and retrieve history
   version: 1.0.0
-x-amazon-apigateway-cors:
-  allowOrigins:
-    - "*"
-  allowMethods:
-    - GET
-    - POST
-  allowHeaders:
-    - content-type
-    - authorization
-  maxAge: 3600
-
 tags:
   - name: QR Code
     description: Generate and retrieve QR codes
