@@ -66,14 +66,16 @@ components:
   securitySchemes:
     CognitoAuth:
       type: openIdConnect
-      openIdConnectUrl: !Sub "${CognitoUserPoolUrl}/.well-known/openid-configuration"
+      openIdConnectUrl:
+        Fn::Sub: "${CognitoUserPoolUrl}/.well-known/openid-configuration"
       x-amazon-apigateway-authorizer:
         type: jwt
         identitySource: $request.header.Authorization
         jwtConfiguration:
-          issuer: !Ref CognitoUserPoolUrl
+          issuer:
+            Ref: CognitoUserPoolUrl
           audience:
-            - !Ref QrCodesUserPoolClient
+            - Ref: QrCodesUserPoolClient
 
   schemas:
     GenerateQrRequest:
