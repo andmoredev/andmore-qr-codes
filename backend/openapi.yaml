@@ -1,0 +1,144 @@
+openapi: 3.0.1
+info:
+  title: QR Code Generator API
+  description: Generate QR codes with optional center logos and retrieve history
+  version: 1.0.0
+
+x-amazon-apigateway-cors:
+  allowOrigins:
+    - '*'
+  allowMethods:
+    - GET
+    - POST
+  allowHeaders:
+    - content-type
+    - authorization
+  maxAge: 3600
+
+paths:
+  /generate:
+    post:
+      operationId: GenerateQr
+      summary: Generate a QR code
+      description: Generates a QR code for the given URL with an optional center logo image
+      tags:
+        - QR Code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateQrRequest'
+      responses:
+        '200':
+          description: QR code generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateQrResponse'
+        '400':
+          $ref: '#/components/responses/ClientError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /history:
+    get:
+      operationId: GetHistory
+      summary: Get QR code history
+      description: Returns the authenticated user's most recent QR code generations
+      tags:
+        - QR Code
+      responses:
+        '200':
+          description: History retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    GenerateQrRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: The destination URL to encode in the QR code
+          example: https://andmore.dev
+        image:
+          type: string
+          description: Base64-encoded image to embed as a center logo (PNG or JPEG, min 125x125px, max aspect ratio 1.5:1)
+          example: data:image/png;base64,iVBORw0KGgo=
+
+    GenerateQrResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this QR code
+        qrCode:
+          type: string
+          description: Base64-encoded PNG of the generated QR code
+
+    HistoryItem:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this QR code
+        url:
+          type: string
+          format: uri
+          description: The destination URL encoded in the QR code
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of when the QR code was generated
+        qrCodeUrl:
+          type: string
+          format: uri
+          description: Presigned S3 URL to download the QR code image (valid 1 hour)
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: Presigned S3 URL to download the center logo image (valid 1 hour), null if no logo was used
+
+    HistoryResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryItem'
+
+  responses:
+    ClientError:
+      description: The request was invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+                example: Image must be at least 125x125 pixels
+    InternalServerError:
+      description: An unexpected error occurred
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+                example: An error occurred generating the QR code
