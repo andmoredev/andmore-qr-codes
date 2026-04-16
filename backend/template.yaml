@@ -59,11 +59,25 @@ Resources:
   QrApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      DefinitionBody:
-        'Fn::Transform':
-          Name: AWS::Include
-          Parameters:
-            Location: ./openapi.yaml
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - content-type
+          - authorization
+        AllowMethods:
+          - GET
+          - POST
+      Auth:
+        Authorizers:
+          CognitoAuth:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Ref CognitoUserPoolUrl
+              audience:
+                - !Ref QrCodesUserPoolClient
+        DefaultAuthorizer: CognitoAuth
+      DefinitionUri: openapi.yaml
 
   # ── Storage ───────────────────────────────────────────────────────────────
 

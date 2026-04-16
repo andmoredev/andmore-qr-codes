@@ -3,17 +3,9 @@ info:
   title: QR Code Generator API
   description: Generate QR codes with optional center logos and retrieve history
   version: 1.0.0
-
-x-amazon-apigateway-cors:
-  allowOrigins:
-    - '*'
-  allowMethods:
-    - GET
-    - POST
-  allowHeaders:
-    - content-type
-    - authorization
-  maxAge: 3600
+tags:
+  - name: QR Code
+    description: Generate and retrieve QR codes
 
 paths:
   /generate:
@@ -23,8 +15,6 @@ paths:
       description: Generates a QR code for the given URL with an optional center logo image
       tags:
         - QR Code
-      security:
-        - CognitoAuth: []
       requestBody:
         required: true
         content:
@@ -50,8 +40,6 @@ paths:
       description: Returns the authenticated user's most recent QR code generations
       tags:
         - QR Code
-      security:
-        - CognitoAuth: []
       responses:
         '200':
           description: History retrieved successfully
@@ -63,20 +51,6 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
 components:
-  securitySchemes:
-    CognitoAuth:
-      type: openIdConnect
-      openIdConnectUrl:
-        Fn::Sub: "${CognitoUserPoolUrl}/.well-known/openid-configuration"
-      x-amazon-apigateway-authorizer:
-        type: jwt
-        identitySource: $request.header.Authorization
-        jwtConfiguration:
-          issuer:
-            Ref: CognitoUserPoolUrl
-          audience:
-            - Ref: QrCodesUserPoolClient
-
   schemas:
     GenerateQrRequest:
       type: object
