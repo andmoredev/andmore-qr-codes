@@ -59,15 +59,6 @@ Resources:
   QrApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      CorsConfiguration:
-        AllowOrigins:
-          - "*"
-        AllowHeaders:
-          - content-type
-          - authorization
-        AllowMethods:
-          - GET
-          - POST
       Auth:
         Authorizers:
           CognitoAuth:
