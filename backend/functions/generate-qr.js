@@ -43,7 +43,7 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: '"url" is required' }) };
   }
 
-  const userId = event.requestContext?.authorizer?.jwt?.claims?.sub;
+  const userId = event.requestContext?.authorizer?.claims?.sub;
   const id = randomUUID();
   const bucket = process.env.STORAGE_BUCKET_NAME;
   const table = process.env.HISTORY_TABLE_NAME;

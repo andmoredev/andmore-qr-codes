@@ -7,7 +7,7 @@ const s3 = new S3Client({});
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 exports.handler = async (event) => {
-  const userId = event.requestContext?.authorizer?.jwt?.claims?.sub;
+  const userId = event.requestContext?.authorizer?.claims?.sub;
   const bucket = process.env.STORAGE_BUCKET_NAME;
   const table = process.env.HISTORY_TABLE_NAME;
 

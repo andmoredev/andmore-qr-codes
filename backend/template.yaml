@@ -57,26 +57,19 @@ Resources:
   # ── API ───────────────────────────────────────────────────────────────────
 
   QrApi:
-    Type: AWS::Serverless::HttpApi
+    Type: AWS::Serverless::Api
     Properties:
-      CorsConfiguration:
-        AllowOrigins:
-          - "*"
-        AllowHeaders:
-          - content-type
-          - authorization
-        AllowMethods:
-          - GET
-          - POST
+      StageName: v1
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowMethods: "'GET,POST,OPTIONS'"
       Auth:
+        DefaultAuthorizer: CognitoAuth
+        AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
           CognitoAuth:
-            IdentitySource: $request.header.Authorization
-            JwtConfiguration:
-              issuer: !Ref CognitoUserPoolUrl
-              audience:
-                - !Ref QrCodesUserPoolClient
-        DefaultAuthorizer: CognitoAuth
+            UserPoolArn: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}"
 
   # ── Storage ───────────────────────────────────────────────────────────────
 
@@ -115,9 +108,9 @@ Resources:
       Description: Generates a QR code with an embedded center image
       Events:
         PostGenerate:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref QrApi
+            RestApiId: !Ref QrApi
             Path: /generate
             Method: POST
       Policies:
@@ -160,9 +153,9 @@ Resources:
       Description: Returns the authenticated user's QR code history
       Events:
         GetHistory:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref QrApi
+            RestApiId: !Ref QrApi
             Path: /history
             Method: GET
       Policies:
@@ -262,7 +255,7 @@ Resources:
 Outputs:
   ApiUrl:
     Description: API base URL
-    Value: !Sub "https://${QrApi}.execute-api.${AWS::Region}.amazonaws.com"
+    Value: !Sub "https://${QrApi}.execute-api.${AWS::Region}.amazonaws.com/v1"
 
   CognitoUserPoolId:
     Description: Cognito User Pool ID
