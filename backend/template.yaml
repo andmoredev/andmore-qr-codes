@@ -59,15 +59,6 @@ Resources:
   QrApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      Auth:
-        Authorizers:
-          CognitoAuth:
-            IdentitySource: $request.header.Authorization
-            JwtConfiguration:
-              issuer: !Ref CognitoUserPoolUrl
-              audience:
-                - !Ref QrCodesUserPoolClient
-        DefaultAuthorizer: CognitoAuth
       DefinitionBody:
         'Fn::Transform':
           Name: AWS::Include
