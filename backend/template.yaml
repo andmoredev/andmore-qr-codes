@@ -198,6 +198,8 @@ Resources:
         Target: es2020
         EntryPoints:
           - generate-qr.js
+        External:
+          - "@aws-sdk/*"
 
   GetHistoryFunction:
     Type: AWS::Serverless::Function
