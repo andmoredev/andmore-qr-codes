@@ -80,4 +80,9 @@ test('analytics-summary happy path returns a DashboardSummary with recent and bu
   assert.equal(body.recentPages.length, 1);
   // scansByDay should enumerate the 31-day window inclusive.
   assert.equal(body.scansByDay.length, 31);
+  // byCountry and byDevice default to empty arrays when there are no scan events.
+  assert.ok(Array.isArray(body.byCountry));
+  assert.equal(body.byCountry.length, 0);
+  assert.ok(Array.isArray(body.byDevice));
+  assert.equal(body.byDevice.length, 0);
 });

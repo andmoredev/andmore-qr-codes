@@ -506,6 +506,10 @@ paths:
                       - { country: US, count: 28 }
                       - { country: MX, count: 14 }
                       - { country: CA, count: 9 }
+                    byDevice:
+                      - { deviceType: mobile, count: 42 }
+                      - { deviceType: desktop, count: 7 }
+                      - { deviceType: tablet, count: 2 }
 
   # ── Public (no auth) ───────────────────────────────────────────────────────
   /r/{qrId}:
@@ -794,6 +798,11 @@ components:
           items:
             type: object
             properties: { country: { type: string }, count: { type: integer } }
+        byDevice:
+          type: array
+          items:
+            type: object
+            properties: { deviceType: { type: string }, count: { type: integer } }
 
     # Legacy schemas retained for transition
     GenerateQrRequest:

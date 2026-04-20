@@ -104,6 +104,7 @@ export interface DashboardSummary {
   recentPages: Array<Pick<LinkPage, 'pageId' | 'slug' | 'displayName' | 'status' | 'updatedAt'>>;
   scansByDay: AnalyticsBucket[];
   byCountry: Array<{ country: string; count: number }>;
+  byDevice: Array<{ deviceType: DeviceType; count: number }>;
 }
 
 export interface PublicPage {

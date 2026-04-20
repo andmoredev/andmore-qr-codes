@@ -7,6 +7,7 @@
  *   - recentQrs / recentPages (top 5 by updatedAt desc)
  *   - scansByDay bucket across the last 30 days
  *   - byCountry: top-10 countries across all scan events in the window
+ *   - byDevice: device-type counts across all scan events in the window
  *
  * Performance note (MVP): click/scan counts are derived by fan-out Query per QR
  * over the EventsTable (O(Nqr × events)). Acceptable while Nqr is small; when
@@ -99,6 +100,7 @@ exports.handler = async (event) => {
     let clicksLast30Days = 0;
     const scansByDay = new Map();
     const scansByCountry = new Map();
+    const scansByDevice = new Map();
     for (const { scans, clicks } of qrEventResults) {
       scansLast30Days += scans.length;
       clicksLast30Days += clicks.length;
@@ -107,6 +109,8 @@ exports.handler = async (event) => {
         if (bucket) scansByDay.set(bucket, (scansByDay.get(bucket) ?? 0) + 1);
         const country = typeof evt.country === 'string' ? evt.country.trim() : '';
         if (country) scansByCountry.set(country, (scansByCountry.get(country) ?? 0) + 1);
+        const deviceType = typeof evt.deviceType === 'string' && evt.deviceType ? evt.deviceType : 'unknown';
+        scansByDevice.set(deviceType, (scansByDevice.get(deviceType) ?? 0) + 1);
       }
     }
 
@@ -117,6 +121,10 @@ exports.handler = async (event) => {
       .map(([country, count]) => ({ country, count }))
       .sort((a, b) => b.count - a.count || a.country.localeCompare(b.country))
       .slice(0, 10);
+
+    const byDevice = [...scansByDevice.entries()]
+      .map(([deviceType, count]) => ({ deviceType, count }))
+      .sort((a, b) => b.count - a.count || a.deviceType.localeCompare(b.deviceType));
 
     const byUpdatedDesc = (a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? ''));
 
@@ -145,6 +153,7 @@ exports.handler = async (event) => {
       recentPages,
       scansByDay: scansByDayArr,
       byCountry,
+      byDevice,
     };
 
     return respond(200, summary);

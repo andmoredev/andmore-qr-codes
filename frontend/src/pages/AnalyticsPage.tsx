@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
-  ArrowRight,
   BarChart3,
   Globe2,
   Link2,
   Loader2,
+  MonitorSmartphone,
   MousePointerClick,
   QrCode as QrCodeIcon,
   ScanLine,
@@ -15,6 +14,7 @@ import { getDashboardSummary } from '../services/analytics';
 import type { AnalyticsBucket, DashboardSummary } from '../types';
 import { TimeSeriesChart } from '../components/analytics/TimeSeriesChart';
 import { CountryBreakdown } from '../components/analytics/CountryBreakdown';
+import { DeviceBreakdown } from '../components/analytics/DeviceBreakdown';
 
 type Range = 7 | 30 | 90;
 
@@ -51,19 +51,6 @@ function filterBucketsByRange(buckets: AnalyticsBucket[], days: Range): Analytic
   // Show the last N daily buckets. Sort ascending to keep the chart left-to-right chronological.
   const sorted = [...buckets].sort((a, b) => a.bucket.localeCompare(b.bucket));
   return sorted.slice(-days);
-}
-
-function formatUpdated(ts: string): string {
-  try {
-    return new Date(ts).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  } catch {
-    return ts;
-  }
 }
 
 export function AnalyticsPage() {
@@ -128,6 +115,9 @@ export function AnalyticsPage() {
 
   if (!data) return null;
 
+  const hasCountry = data.byCountry.length > 0;
+  const hasDevice = data.byDevice.length > 0;
+
   return (
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -189,111 +179,49 @@ export function AnalyticsPage() {
         />
       </section>
 
-      {/* Scan trend + country breakdown */}
-      <section
-        className={`grid grid-cols-1 gap-4 ${
-          data.byCountry.length > 0 ? 'lg:grid-cols-3' : ''
-        }`}
-      >
-        <div
-          className={`bg-surface border border-border rounded-xl p-4 sm:p-6 space-y-3 ${
-            data.byCountry.length > 0 ? 'lg:col-span-2' : ''
+      {/* Scans over time — full width so the chart has room to breathe */}
+      <section className="bg-surface border border-border rounded-xl p-4 sm:p-6 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-foreground">Scans over time</h2>
+          <span className="text-xs text-text-muted">{rangeLabel}</span>
+        </div>
+        <TimeSeriesChart data={filteredByDay} label="Scans" />
+      </section>
+
+      {/* Country + Device breakdowns: side-by-side at >=1024px, stacked below */}
+      {(hasCountry || hasDevice) && (
+        <section
+          className={`grid grid-cols-1 gap-4 ${
+            hasCountry && hasDevice ? 'lg:grid-cols-2' : ''
           }`}
         >
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-foreground">Scans over time</h2>
-            <span className="text-xs text-text-muted">{rangeLabel}</span>
-          </div>
-          <TimeSeriesChart data={filteredByDay} label="Scans" />
-        </div>
-
-        {data.byCountry.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-4 sm:p-6 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Globe2 className="w-4 h-4 text-text-muted" />
-                Scans by country
-              </h2>
-              <span className="text-xs text-text-muted">Last 30 days</span>
+          {hasCountry && (
+            <div className="bg-surface border border-border rounded-xl p-4 sm:p-6 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Globe2 className="w-4 h-4 text-text-muted" />
+                  Scans by country
+                </h2>
+                <span className="text-xs text-text-muted">Last 30 days</span>
+              </div>
+              <CountryBreakdown data={data.byCountry} />
             </div>
-            <CountryBreakdown data={data.byCountry} />
-          </div>
-        )}
-      </section>
-
-      {/* Recent activity */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-surface border border-border rounded-xl p-4 sm:p-6 space-y-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <QrCodeIcon className="w-4 h-4 text-text-muted" />
-            Recent QR codes
-          </h2>
-          {data.recentQrs.length === 0 ? (
-            <p className="text-sm text-text-muted">No QR codes yet.</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {data.recentQrs.map(qr => (
-                <li key={qr.qrId}>
-                  <Link
-                    to={`/qrs/${qr.qrId}`}
-                    className="flex items-center justify-between py-2.5 group"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm text-foreground truncate group-hover:text-accent transition-colors">
-                        {qr.name}
-                      </p>
-                      <p className="text-xs text-text-muted">
-                        {qr.type === 'page' ? 'Links page QR' : 'Direct URL QR'} · updated{' '}
-                        {formatUpdated(qr.updatedAt)}
-                      </p>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-accent transition-colors shrink-0 ml-3" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
           )}
-        </div>
 
-        <div className="bg-surface border border-border rounded-xl p-4 sm:p-6 space-y-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Link2 className="w-4 h-4 text-text-muted" />
-            Recent pages
-          </h2>
-          {data.recentPages.length === 0 ? (
-            <p className="text-sm text-text-muted">No pages yet.</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {data.recentPages.map(page => (
-                <li key={page.pageId}>
-                  <Link
-                    to={`/pages/${page.pageId}`}
-                    className="flex items-center justify-between py-2.5 group"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm text-foreground truncate group-hover:text-accent transition-colors">
-                        {page.displayName}
-                      </p>
-                      <p className="text-xs text-text-muted truncate">
-                        /p/{page.slug} ·{' '}
-                        <span
-                          className={
-                            page.status === 'published' ? 'text-accent' : 'text-text-muted'
-                          }
-                        >
-                          {page.status}
-                        </span>{' '}
-                        · updated {formatUpdated(page.updatedAt)}
-                      </p>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-accent transition-colors shrink-0 ml-3" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          {hasDevice && (
+            <div className="bg-surface border border-border rounded-xl p-4 sm:p-6 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <MonitorSmartphone className="w-4 h-4 text-text-muted" />
+                  Scans by device
+                </h2>
+                <span className="text-xs text-text-muted">Last 30 days</span>
+              </div>
+              <DeviceBreakdown data={data.byDevice} />
+            </div>
           )}
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }

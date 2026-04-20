@@ -10,15 +10,6 @@ import {
   FileText,
   Sparkles,
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from 'recharts';
 import { getDashboardSummary } from '../services/analytics';
 import type { DashboardSummary } from '../types';
 
@@ -42,11 +33,6 @@ function StatCard({ label, value, icon, trend = 'Last 30 days' }: StatCardProps)
       <span className="text-xs text-text-muted">{trend}</span>
     </div>
   );
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function formatRelative(iso: string): string {
@@ -195,65 +181,6 @@ function RecentPages({ items }: { items: DashboardSummary['recentPages'] }) {
   );
 }
 
-function ScanTrendChart({ data }: { data: DashboardSummary['scansByDay'] }) {
-  const chartData = data.map(d => ({ date: formatDate(d.bucket), scans: d.count }));
-  const totalScans = data.reduce((acc, d) => acc + d.count, 0);
-
-  return (
-    <section className="bg-surface border border-border rounded-xl p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <ScanLine className="w-4 h-4 text-text-muted" />
-          Scan Trend
-        </h2>
-        <span className="text-xs text-text-muted">Last 30 days</span>
-      </div>
-      {totalScans === 0 ? (
-        <p className="text-sm text-text-muted py-12 text-center">
-          No scans recorded in the last 30 days.
-        </p>
-      ) : (
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 10, right: 16, left: -8, bottom: 0 }}>
-              <CartesianGrid stroke="#272F42" strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="date"
-                stroke="#94A3B8"
-                fontSize={11}
-                tickLine={false}
-                axisLine={{ stroke: '#475569' }}
-              />
-              <YAxis
-                stroke="#94A3B8"
-                fontSize={11}
-                tickLine={false}
-                axisLine={{ stroke: '#475569' }}
-                allowDecimals={false}
-              />
-              <Tooltip
-                cursor={{ stroke: '#475569', strokeDasharray: '3 3' }}
-                contentStyle={{ background: '#1E293B', border: '1px solid #475569', color: '#F8FAFC' }}
-                labelStyle={{ color: '#F8FAFC' }}
-                itemStyle={{ color: '#F8FAFC' }}
-                formatter={(value) => [Number(value).toLocaleString(), 'Scans']}
-              />
-              <Line
-                type="monotone"
-                dataKey="scans"
-                stroke="#22C55E"
-                strokeWidth={2}
-                dot={{ r: 3, fill: '#22C55E', strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: '#22C55E', stroke: '#0F172A', strokeWidth: 2 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </section>
-  );
-}
-
 export function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -289,7 +216,6 @@ export function DashboardPage() {
           <div className="h-64 bg-surface border border-border rounded-xl animate-pulse" />
           <div className="h-64 bg-surface border border-border rounded-xl animate-pulse" />
         </div>
-        <div className="h-72 bg-surface border border-border rounded-xl animate-pulse" />
       </div>
     );
   }
@@ -370,8 +296,6 @@ export function DashboardPage() {
             <RecentQrs items={summary.recentQrs} />
             <RecentPages items={summary.recentPages} />
           </div>
-
-          <ScanTrendChart data={summary.scansByDay} />
         </>
       )}
     </div>
