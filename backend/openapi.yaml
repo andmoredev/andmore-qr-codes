@@ -475,6 +475,10 @@ paths:
                       - { bucket: '2026-03-22', count: 0 }
                       - { bucket: '2026-04-19', count: 12 }
                       - { bucket: '2026-04-20', count: 7 }
+                    byCountry:
+                      - { country: US, count: 28 }
+                      - { country: MX, count: 14 }
+                      - { country: CA, count: 9 }
 
   # ── Public (no auth) ───────────────────────────────────────────────────────
   /r/{qrId}:
@@ -758,6 +762,11 @@ components:
               status: { type: string, enum: [draft, published] }
               updatedAt: { type: string, format: date-time }
         scansByDay: { type: array, items: { $ref: '#/components/schemas/AnalyticsBucket' } }
+        byCountry:
+          type: array
+          items:
+            type: object
+            properties: { country: { type: string }, count: { type: integer } }
 
     # Legacy schemas retained for transition
     GenerateQrRequest:
