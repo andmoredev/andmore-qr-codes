@@ -60,7 +60,14 @@ exports.handler = async (event) => {
     return respond(404, { error: 'Not found' });
   }
 
-  const host = getHeader(event.headers, 'Host') ?? '';
+  // PUBLIC_BASE_URL comes from the CFN PublicBaseUrl parameter. Host header is
+  // only a fallback — when CloudFront is fronting PublicApi the Host header is
+  // stripped (the origin request policy omits it so API Gateway doesn't 403),
+  // so relying on it alone would redirect to the API Gateway domain instead of
+  // the user-facing CloudFront/custom domain.
+  const publicBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+  const hostHeader = getHeader(event.headers, 'Host') ?? '';
+  const baseUrl = publicBase || (hostHeader ? `https://${hostHeader}` : '');
   let destination;
 
   if (qrLookup.type === 'direct') {
@@ -69,6 +76,10 @@ exports.handler = async (event) => {
   } else if (qrLookup.type === 'page') {
     const { userId, pageId } = qrLookup;
     if (!userId || !pageId) return respond(404, { error: 'Not found' });
+    if (!baseUrl) {
+      console.error('PUBLIC_BASE_URL is not configured and Host header is missing');
+      return respond(500, { error: 'Server misconfiguration' });
+    }
     let page;
     try {
       page = await getPageByUser(userId, pageId);
@@ -78,9 +89,9 @@ exports.handler = async (event) => {
     }
     if (!page) return respond(404, { error: 'Not found' });
     if (page.status !== 'published') {
-      destination = `https://${host}/p/unavailable`;
+      destination = `${baseUrl}/p/unavailable`;
     } else {
-      destination = `https://${host}/p/${page.slug}?src=${encodeURIComponent(qrId)}`;
+      destination = `${baseUrl}/p/${page.slug}?src=${encodeURIComponent(qrId)}`;
     }
   } else {
     return respond(404, { error: 'Not found' });
