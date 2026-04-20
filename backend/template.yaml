@@ -235,6 +235,352 @@ Resources:
         External:
           - "@aws-sdk/*"
 
+  # ── QR CRUD (workstream B) ────────────────────────────────────────────────
+
+  QrsListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: qrs-list.handler
+      Description: List the caller's QR codes with presigned URLs
+      Events:
+        QrsList:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /qrs
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource:
+                - !Sub "${StorageBucket.Arn}/qrcodes/*"
+                - !Sub "${StorageBucket.Arn}/logos/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - qrs-list.js
+        External:
+          - "@aws-sdk/*"
+
+  QrsCreateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: qrs-create.handler
+      Description: Create a direct or page-backed QR code
+      Environment:
+        Variables:
+          PUBLIC_BASE_URL: !Sub "https://${FrontendDistribution.DomainName}"
+      Events:
+        QrsCreate:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /qrs
+            Method: POST
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:GetItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource:
+                - !Sub "${StorageBucket.Arn}/qrcodes/*"
+                - !Sub "${StorageBucket.Arn}/logos/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - qrs-create.js
+        External:
+          - "@aws-sdk/*"
+
+  QrsGetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: qrs-get.handler
+      Description: Fetch a single QR code owned by the caller
+      Events:
+        QrsGet:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /qrs/{qrId}
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource:
+                - !Sub "${StorageBucket.Arn}/qrcodes/*"
+                - !Sub "${StorageBucket.Arn}/logos/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - qrs-get.js
+        External:
+          - "@aws-sdk/*"
+
+  QrsUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: qrs-update.handler
+      Description: Update a QR code and snapshot the prior state as a new version
+      Environment:
+        Variables:
+          PUBLIC_BASE_URL: !Sub "https://${FrontendDistribution.DomainName}"
+      Events:
+        QrsUpdate:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /qrs/{qrId}
+            Method: PATCH
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource:
+                - !Sub "${StorageBucket.Arn}/qrcodes/*"
+                - !Sub "${StorageBucket.Arn}/logos/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - qrs-update.js
+        External:
+          - "@aws-sdk/*"
+
+  QrsDeleteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: qrs-delete.handler
+      Description: Soft-delete a QR code (enabled=false, deletedAt set)
+      Events:
+        QrsDelete:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /qrs/{qrId}
+            Method: DELETE
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - qrs-delete.js
+        External:
+          - "@aws-sdk/*"
+
+  QrsVersionsListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: qrs-versions-list.handler
+      Description: List the version history of a QR code, newest first
+      Events:
+        QrsVerList:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /qrs/{qrId}/versions
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - qrs-versions-list.js
+        External:
+          - "@aws-sdk/*"
+
+  QrsVersionsRestoreFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: qrs-versions-restore.handler
+      Description: Restore a QR code to a prior version (snapshots current state)
+      Environment:
+        Variables:
+          PUBLIC_BASE_URL: !Sub "https://${FrontendDistribution.DomainName}"
+      Events:
+        QrsVerRestore:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /qrs/{qrId}/versions/{n}/restore
+            Method: POST
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource:
+                - !Sub "${StorageBucket.Arn}/qrcodes/*"
+                - !Sub "${StorageBucket.Arn}/logos/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - qrs-versions-restore.js
+        External:
+          - "@aws-sdk/*"
+
   # ── Scaffolded stub functions (foundation PR) ─────────────────────────────
   # Each feature PR replaces its route(s) by (a) creating a new Function with
   # the real handler and (b) removing the Event below. The stubs return 501.
@@ -246,27 +592,6 @@ Resources:
       Handler: _stub.handler
       Description: Foundation stub — returns 501 for authenticated routes not yet implemented
       Events:
-        QrsList:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: /qrs, Method: GET }
-        QrsCreate:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: /qrs, Method: POST }
-        QrsGet:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}', Method: GET }
-        QrsUpdate:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}', Method: PATCH }
-        QrsDelete:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}', Method: DELETE }
-        QrsVerList:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}/versions', Method: GET }
-        QrsVerRestore:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}/versions/{n}/restore', Method: POST }
         PagesList:
           Type: Api
           Properties: { RestApiId: !Ref QrRestApi, Path: /pages, Method: GET }
