@@ -167,8 +167,7 @@ export function PublicPageView({ page, interactive = true, srcQrId }: Props) {
                 {interactive ? (
                   <a
                     href={buildHref(link.clickHref ?? '', srcQrId)}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
+                    rel="noopener nofollow"
                     className={commonClass}
                     style={commonStyle}
                   >

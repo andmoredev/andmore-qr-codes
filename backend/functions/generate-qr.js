@@ -3,21 +3,10 @@ const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
 const { randomUUID } = require('crypto');
 const { renderQrPng, QrRenderValidationError } = require('./shared/qrRender');
+const { respond } = require('./shared/cors');
 
 const s3 = new S3Client({});
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-};
-
-const respond = (statusCode, body, extraHeaders = {}) => ({
-  statusCode,
-  headers: { 'Content-Type': 'application/json', ...CORS_HEADERS, ...extraHeaders },
-  body: JSON.stringify(body),
-});
 
 exports.handler = async (event) => {
   let body;

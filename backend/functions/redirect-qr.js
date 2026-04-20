@@ -1,5 +1,5 @@
 const { createHash } = require('crypto');
-const { respond, redirect } = require('./shared/cors');
+const { redirect } = require('./shared/cors');
 const { getQrLookup, getPageByUser } = require('./shared/repo/appTable');
 const { putScanEvent } = require('./shared/repo/eventsTable');
 
@@ -42,59 +42,67 @@ const getSourceIp = (event) => {
 };
 
 /**
+ * All `/p/*` redirects are emitted as **relative** `Location:` values. Browsers
+ * resolve relative `Location` against the viewer's effective request URI,
+ * which is the CloudFront domain the phone actually hit — exactly where we
+ * want them to land. Using relative URLs avoids two recurring footguns:
+ *
+ *  - `PUBLIC_BASE_URL` env var accidentally empty after a deploy that forgot
+ *    `--parameter-overrides PublicBaseUrl=...`, which produced a 302 to `""`.
+ *  - `event.headers.Host` pointing at API Gateway's execute-api domain
+ *    (CloudFront's origin-request policy strips the viewer Host), producing
+ *    a 302 to an API Gateway URL that has no `/p/*` route and returns 403.
+ */
+const PAGE_UNAVAILABLE = '/p/unavailable';
+
+/**
  * GET /r/{qrId} — resolve a QR scan, record a scan event, 302 to destination.
+ *
+ * IMPORTANT: this handler must always 302 — never 4xx/5xx. CloudFront's
+ * distribution-level CustomErrorResponses rewrites every 4xx from any origin
+ * (including PublicApi) to `/index.html`, which loads the SPA and bounces
+ * through ProtectedRoute to `/login`. Returning a 302 to `/p/unavailable`
+ * keeps the viewer on the friendly "not available" page instead.
  */
 exports.handler = async (event) => {
   const qrId = event.pathParameters?.qrId;
-  if (!qrId) return respond(404, { error: 'Not found' });
+  if (!qrId) return redirect(PAGE_UNAVAILABLE);
 
   let qrLookup;
   try {
     qrLookup = await getQrLookup(qrId);
   } catch (err) {
     console.error('getQrLookup failed', { qrId, err });
-    return respond(500, { error: 'Internal server error' });
+    return redirect(PAGE_UNAVAILABLE);
   }
 
   if (!qrLookup || qrLookup.enabled === false) {
-    return respond(404, { error: 'Not found' });
+    return redirect(PAGE_UNAVAILABLE);
   }
 
-  // PUBLIC_BASE_URL comes from the CFN PublicBaseUrl parameter. Host header is
-  // only a fallback — when CloudFront is fronting PublicApi the Host header is
-  // stripped (the origin request policy omits it so API Gateway doesn't 403),
-  // so relying on it alone would redirect to the API Gateway domain instead of
-  // the user-facing CloudFront/custom domain.
-  const publicBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
-  const hostHeader = getHeader(event.headers, 'Host') ?? '';
-  const baseUrl = publicBase || (hostHeader ? `https://${hostHeader}` : '');
   let destination;
 
   if (qrLookup.type === 'direct') {
-    if (!qrLookup.destinationUrl) return respond(404, { error: 'Not found' });
+    if (!qrLookup.destinationUrl) return redirect(PAGE_UNAVAILABLE);
     destination = qrLookup.destinationUrl;
   } else if (qrLookup.type === 'page') {
     const { userId, pageId } = qrLookup;
-    if (!userId || !pageId) return respond(404, { error: 'Not found' });
-    if (!baseUrl) {
-      console.error('PUBLIC_BASE_URL is not configured and Host header is missing');
-      return respond(500, { error: 'Server misconfiguration' });
-    }
+    if (!userId || !pageId) return redirect(PAGE_UNAVAILABLE);
     let page;
     try {
       page = await getPageByUser(userId, pageId);
     } catch (err) {
       console.error('getPageByUser failed', { userId, pageId, err });
-      return respond(500, { error: 'Internal server error' });
+      return redirect(PAGE_UNAVAILABLE);
     }
-    if (!page) return respond(404, { error: 'Not found' });
+    if (!page) return redirect(PAGE_UNAVAILABLE);
     if (page.status !== 'published') {
-      destination = `${baseUrl}/p/unavailable`;
+      destination = PAGE_UNAVAILABLE;
     } else {
-      destination = `${baseUrl}/p/${page.slug}?src=${encodeURIComponent(qrId)}`;
+      destination = `/p/${encodeURIComponent(page.slug)}?src=${encodeURIComponent(qrId)}`;
     }
   } else {
-    return respond(404, { error: 'Not found' });
+    return redirect(PAGE_UNAVAILABLE);
   }
 
   const ua = getHeader(event.headers, 'User-Agent');
