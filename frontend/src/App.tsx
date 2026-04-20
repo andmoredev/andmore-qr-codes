@@ -4,7 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
-import { HomePage } from './pages/HomePage';
+import { DashboardPage } from './pages/DashboardPage';
 import { QrListPage } from './pages/QrListPage';
 import { QrEditorPage } from './pages/QrEditorPage';
 import { QrDetailPage } from './pages/QrDetailPage';
@@ -27,7 +27,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/p/:slug" element={<PublicPage />} />
 
-          <Route path="/" element={authed(<HomePage />)} />
+          <Route path="/" element={authed(<DashboardPage />)} />
           <Route path="/qrs" element={authed(<QrListPage />)} />
           <Route path="/qrs/new" element={authed(<QrEditorPage />)} />
           <Route path="/qrs/:qrId" element={authed(<QrDetailPage />)} />
