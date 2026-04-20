@@ -1,10 +1,9 @@
 /**
  * GET /analytics/qrs/{qrId}?from&to
  *
- * Returns an AnalyticsSummary for a single QR owned by the caller. Scan totals
- * come from AggregatesTable (daily aggregates maintained by the Stream-driven
- * AggregatorFunction). Click totals are fetched per-linkKey for page-backed
- * QRs. Aggregates lag raw events by a few seconds — acceptable for this UI.
+ * Returns an AnalyticsSummary for a single QR owned by the caller, aggregating
+ * scan events from EventsTable and — when the QR is page-backed — click events
+ * across every link on the current page version.
  *
  * Query params:
  *   - from, to: ISO dates (YYYY-MM-DD). Default window: last 30 days (today-30d .. today).
@@ -13,11 +12,7 @@
  */
 const { respond } = require('./shared/cors');
 const { getQrByUser, getPageByUser } = require('./shared/repo/appTable');
-const {
-  queryDailyTotals,
-  queryCountryBreakdown,
-  queryDeviceBreakdown,
-} = require('./shared/repo/aggregatesTable');
+const { queryScans, queryClicks } = require('./shared/repo/eventsTable');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -50,21 +45,19 @@ const enumerateDays = (fromDate, toDate) => {
   return days;
 };
 
-/** Sum a list of { date, count } into a Map keyed by date. */
-const sumByDay = (rows) => {
-  const m = new Map();
-  for (const r of rows) m.set(r.date, (m.get(r.date) ?? 0) + Number(r.count ?? 0));
-  return m;
-};
-
-/** Merge two breakdown lists ({ key, count }[]) into a Map keyed by the shared key. */
-const mergeBreakdown = (target, rows, keyField) => {
-  for (const r of rows) {
-    const k = r[keyField];
-    if (!k) continue;
-    target.set(k, (target.get(k) ?? 0) + Number(r.count ?? 0));
+/** Count events into { byDay, byCountry, byDevice }. */
+const aggregateEvents = (events) => {
+  const byDay = new Map();
+  const byCountry = new Map();
+  const byDevice = new Map();
+  for (const evt of events) {
+    const bucket = typeof evt.ts === 'string' ? evt.ts.slice(0, 10) : null;
+    if (bucket) byDay.set(bucket, (byDay.get(bucket) ?? 0) + 1);
+    if (evt.country) byCountry.set(evt.country, (byCountry.get(evt.country) ?? 0) + 1);
+    const device = evt.deviceType ?? 'unknown';
+    byDevice.set(device, (byDevice.get(device) ?? 0) + 1);
   }
-  return target;
+  return { byDay, byCountry, byDevice };
 };
 
 const toSortedDayArray = (countsByDay, allDays) =>
@@ -73,15 +66,13 @@ const toSortedDayArray = (countsByDay, allDays) =>
 const toTopCountryArray = (byCountry, n = 10) =>
   [...byCountry.entries()]
     .map(([country, count]) => ({ country, count }))
-    .sort((a, b) => b.count - a.count || a.country.localeCompare(b.country))
+    .sort((a, b) => b.count - a.count)
     .slice(0, n);
 
 const toDeviceArray = (byDevice) =>
   [...byDevice.entries()]
     .map(([deviceType, count]) => ({ deviceType, count }))
-    .sort((a, b) => b.count - a.count || a.deviceType.localeCompare(b.deviceType));
-
-const sumCounts = (rows) => rows.reduce((acc, r) => acc + Number(r.count ?? 0), 0);
+    .sort((a, b) => b.count - a.count);
 
 exports.handler = async (event) => {
   const userId = event.requestContext?.authorizer?.claims?.sub;
@@ -103,70 +94,53 @@ exports.handler = async (event) => {
   const toDate = parseToDate(qs.to) ?? new Date(todayUtcMidnight.getTime() + (DAY_MS - 1));
   if (fromDate > toDate) return respond(400, { error: '`from` must be on or before `to`' });
 
-  const fromDay = fromDate.toISOString().slice(0, 10);
-  const toDay = toDate.toISOString().slice(0, 10);
-  const qrPk = `QR#${qrId}`;
+  const fromIso = fromDate.toISOString();
+  const toIso = toDate.toISOString();
 
   try {
-    // Scans — always queried from AggregatesTable.
-    const scanDailyPromise = queryDailyTotals({ pk: qrPk, from: fromDay, to: toDay });
-    const scanCountryPromise = queryCountryBreakdown({ pk: qrPk, from: fromDay, to: toDay });
-    const scanDevicePromise = queryDeviceBreakdown({ pk: qrPk, from: fromDay, to: toDay });
+    // Scans — always queried.
+    const scansPromise = queryScans({ qrId, from: fromIso, to: toIso });
 
     // Clicks — only for page-backed QRs, fanned out across every linkKey on the page.
+    let clicksPromise = Promise.resolve([]);
     let linkKeys = [];
-    let clicksPerLinkPromise = Promise.resolve([]);
     if (qr.type === 'page' && qr.pageId) {
       const page = await getPageByUser(userId, qr.pageId);
       linkKeys = Array.isArray(page?.links) ? page.links.map((l) => l.linkKey).filter(Boolean) : [];
       if (linkKeys.length > 0) {
-        clicksPerLinkPromise = Promise.all(
-          linkKeys.map(async (linkKey) => {
-            const pk = `LINK#${qrId}#${linkKey}`;
-            const [daily, country, device] = await Promise.all([
-              queryDailyTotals({ pk, from: fromDay, to: toDay }),
-              queryCountryBreakdown({ pk, from: fromDay, to: toDay }),
-              queryDeviceBreakdown({ pk, from: fromDay, to: toDay }),
-            ]);
-            return { linkKey, daily, country, device };
-          }),
-        );
+        clicksPromise = Promise.all(
+          linkKeys.map((linkKey) => queryClicks({ qrId, linkKey, from: fromIso, to: toIso }))
+        ).then((results) => results.flat());
       }
     }
 
-    const [scanDaily, scanCountry, scanDevice, clicksPerLink] = await Promise.all([
-      scanDailyPromise,
-      scanCountryPromise,
-      scanDevicePromise,
-      clicksPerLinkPromise,
-    ]);
-
-    const totalScans = sumCounts(scanDaily);
-    const totalClicks = clicksPerLink.reduce((acc, l) => acc + sumCounts(l.daily), 0);
+    const [scans, clicks] = await Promise.all([scansPromise, clicksPromise]);
 
     const days = enumerateDays(fromDate, toDate);
+    const scanAgg = aggregateEvents(scans);
+    const clickAgg = aggregateEvents(clicks);
 
-    // Combined byDay = scans + all link clicks per day.
-    const combinedByDay = sumByDay(scanDaily);
-    for (const link of clicksPerLink) {
-      for (const r of link.daily) {
-        combinedByDay.set(r.date, (combinedByDay.get(r.date) ?? 0) + Number(r.count ?? 0));
-      }
-    }
+    // Combined byDay = scans + clicks per day.
+    const combinedByDay = new Map();
+    for (const [day, count] of scanAgg.byDay) combinedByDay.set(day, (combinedByDay.get(day) ?? 0) + count);
+    for (const [day, count] of clickAgg.byDay) combinedByDay.set(day, (combinedByDay.get(day) ?? 0) + count);
 
     const combinedByCountry = new Map();
-    mergeBreakdown(combinedByCountry, scanCountry, 'country');
-    for (const link of clicksPerLink) mergeBreakdown(combinedByCountry, link.country, 'country');
+    for (const [c, n] of scanAgg.byCountry) combinedByCountry.set(c, (combinedByCountry.get(c) ?? 0) + n);
+    for (const [c, n] of clickAgg.byCountry) combinedByCountry.set(c, (combinedByCountry.get(c) ?? 0) + n);
 
     const combinedByDevice = new Map();
-    mergeBreakdown(combinedByDevice, scanDevice, 'deviceType');
-    for (const link of clicksPerLink) mergeBreakdown(combinedByDevice, link.device, 'deviceType');
+    for (const [d, n] of scanAgg.byDevice) combinedByDevice.set(d, (combinedByDevice.get(d) ?? 0) + n);
+    for (const [d, n] of clickAgg.byDevice) combinedByDevice.set(d, (combinedByDevice.get(d) ?? 0) + n);
 
     const byLink = qr.type === 'page'
       ? (() => {
         const counts = new Map();
         for (const key of linkKeys) counts.set(key, 0);
-        for (const link of clicksPerLink) counts.set(link.linkKey, sumCounts(link.daily));
+        for (const evt of clicks) {
+          if (!evt.linkKey) continue;
+          counts.set(evt.linkKey, (counts.get(evt.linkKey) ?? 0) + 1);
+        }
         return [...counts.entries()]
           .map(([linkKey, count]) => ({ linkKey, count }))
           .sort((a, b) => b.count - a.count);
@@ -175,8 +149,8 @@ exports.handler = async (event) => {
 
     const summary = {
       qrId,
-      totalScans,
-      totalClicks,
+      totalScans: scans.length,
+      totalClicks: clicks.length,
       byDay: toSortedDayArray(combinedByDay, days),
       byCountry: toTopCountryArray(combinedByCountry, 10),
       byDevice: toDeviceArray(combinedByDevice),
