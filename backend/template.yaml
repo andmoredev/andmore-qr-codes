@@ -11,6 +11,14 @@ Parameters:
     Type: String
     Description: A hash of the current environment
 
+  CognitoUserPoolId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /andmoredev-auth/CognitoUserPoolId
+
+  CognitoUserPoolUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /andmoredev-auth/CognitoUserPoolUrl
+
 Globals:
   Function:
     Timeout: 30
@@ -19,8 +27,79 @@ Globals:
     Architectures:
       - arm64
     Tracing: Active
+    Environment:
+      Variables:
+        STORAGE_BUCKET_NAME: !Ref StorageBucket
+        HISTORY_TABLE_NAME: !Ref HistoryTable
 
 Resources:
+  # ── Auth ──────────────────────────────────────────────────────────────────
+
+  QrCodesUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref CognitoUserPoolId
+      ClientName: andmore-qr-codes
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+      PreventUserExistenceErrors: ENABLED
+
+  # ── API ───────────────────────────────────────────────────────────────────
+
+  QrRestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: v1
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowMethods: "'GET,POST,OPTIONS'"
+      Auth:
+        DefaultAuthorizer: CognitoAuth
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuth:
+            UserPoolArn: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}"
+
+  # ── Storage ───────────────────────────────────────────────────────────────
+
+  StorageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ["*"]
+            AllowedHeaders: ["*"]
+            AllowedMethods: [GET]
+            MaxAge: 3600
+
+  HistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: createdAt
+          KeyType: RANGE
+
+  # ── Lambda functions ──────────────────────────────────────────────────────
+
   GenerateQrFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -29,12 +108,22 @@ Resources:
       Description: Generates a QR code with an embedded center image
       Events:
         PostGenerate:
-          Type: HttpApi
+          Type: Api
           Properties:
+            RestApiId: !Ref QrRestApi
             Path: /generate
             Method: POST
       Policies:
         - Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/*"
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt HistoryTable.Arn
             - Effect: Allow
               Action:
                 - logs:CreateLogGroup
@@ -56,7 +145,138 @@ Resources:
         EntryPoints:
           - generate-qr.js
 
+  GetHistoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: get-history.handler
+      Description: Returns the authenticated user's QR code history
+      Events:
+        GetHistory:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /history
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource: !GetAtt HistoryTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - get-history.js
+        External:
+          - "@aws-sdk/*"
+
+  # ── Frontend hosting ──────────────────────────────────────────────────────
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
+
+  FrontendOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "andmore-qr-codes-oac-${EnvironmentHash}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt FrontendOAC.Id
+            S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+          AllowedMethods: [GET, HEAD]
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
 Outputs:
   ApiUrl:
-    Description: QR code generation endpoint
-    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/generate"
+    Description: API base URL
+    Value: !Sub "https://${QrRestApi}.execute-api.${AWS::Region}.amazonaws.com/v1"
+
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref CognitoUserPoolId
+
+  CognitoUserPoolClientId:
+    Description: Cognito App Client ID
+    Value: !Ref QrCodesUserPoolClient
+
+  CognitoUserPoolUrl:
+    Description: Cognito User Pool URL
+    Value: !Ref CognitoUserPoolUrl
+
+  FrontendBucketName:
+    Description: S3 bucket for frontend assets
+    Value: !Ref FrontendBucket
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID
+    Value: !Ref FrontendDistribution
+
+  CloudFrontUrl:
+    Description: Frontend URL
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
