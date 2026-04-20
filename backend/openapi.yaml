@@ -358,6 +358,33 @@ paths:
         '400': { $ref: '#/components/responses/ClientError' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /pages/{pageId}/preview:
+    parameters: [{ name: pageId, in: path, required: true, schema: { type: string } }]
+    get:
+      operationId: GetPagePreview
+      summary: Owner-scoped draft preview — returns the PublicPage payload for a draft or published page without publishing it
+      tags: [Links Pages]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicPage' }
+              example:
+                slug: jane-doe
+                displayName: Jane Doe
+                bio: Building things at the edges of software and design.
+                avatarUrl: https://example-bucket.s3.amazonaws.com/avatars/abc123/page_xyz/v3.png?X-Amz-Signature=...
+                theme: dark
+                accentColor: '#22C55E'
+                links:
+                  - linkKey: lk_01HZX1
+                    kind: x
+                    label: '@janedoe'
+                    icon: null
+                    clickHref: /l/amFuZS1kb2U6bGtfMDFIWlgx
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /pages/{pageId}/versions:
     parameters: [{ name: pageId, in: path, required: true, schema: { type: string } }]
     get:
