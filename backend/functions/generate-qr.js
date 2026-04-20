@@ -8,6 +8,18 @@ const { randomUUID } = require('crypto');
 const s3 = new S3Client({});
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+};
+
+const respond = (statusCode, body, extraHeaders = {}) => ({
+  statusCode,
+  headers: { 'Content-Type': 'application/json', ...CORS_HEADERS, ...extraHeaders },
+  body: JSON.stringify(body),
+});
+
 const QR_SIZE = 500;
 const LOGO_RATIO = 0.25;
 const BORDER_WIDTH = 12;
@@ -34,13 +46,13 @@ exports.handler = async (event) => {
   try {
     body = JSON.parse(event.body ?? '{}');
   } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+    return respond(400, { error: 'Invalid JSON body' });
   }
 
   const { url, image } = body;
 
   if (!url) {
-    return { statusCode: 400, body: JSON.stringify({ error: '"url" is required' }) };
+    return respond(400, { error: '"url" is required' });
   }
 
   const userId = event.requestContext?.authorizer?.claims?.sub;
@@ -64,7 +76,7 @@ exports.handler = async (event) => {
       try {
         imageBuffer = Buffer.from(image, 'base64');
       } catch {
-        return { statusCode: 400, body: JSON.stringify({ error: 'Invalid base64 image data' }) };
+        return respond(400, { error: 'Invalid base64 image data' });
       }
 
       const qrImage = await Jimp.read(qrBuffer);
@@ -75,24 +87,18 @@ exports.handler = async (event) => {
       const aspectRatio = Math.max(w, h) / Math.min(w, h);
 
       if (aspectRatio > MAX_ASPECT_RATIO) {
-        return {
-          statusCode: 400,
-          body: JSON.stringify({
-            error: `Image aspect ratio is too extreme (${w}x${h}, ratio ${aspectRatio.toFixed(2)}:1). Use an image closer to square (max ${MAX_ASPECT_RATIO}:1 ratio).`,
-          }),
-        };
+        return respond(400, {
+          error: `Image aspect ratio is too extreme (${w}x${h}, ratio ${aspectRatio.toFixed(2)}:1). Use an image closer to square (max ${MAX_ASPECT_RATIO}:1 ratio).`,
+        });
       }
 
       const logoSize = Math.floor(QR_SIZE * LOGO_RATIO);
       const side = Math.min(w, h);
 
       if (side < logoSize) {
-        return {
-          statusCode: 400,
-          body: JSON.stringify({
-            error: `Image is too small. The logo circle is ${logoSize}x${logoSize}px — your image's smallest dimension is ${side}px. Provide an image that is at least ${logoSize}x${logoSize}px.`,
-          }),
-        };
+        return respond(400, {
+          error: `Image is too small. The logo circle is ${logoSize}x${logoSize}px — your image's smallest dimension is ${side}px. Provide an image that is at least ${logoSize}x${logoSize}px.`,
+        });
       }
 
       logo.crop(Math.floor((w - side) / 2), Math.floor((h - side) / 2), side, side);
@@ -148,13 +154,9 @@ exports.handler = async (event) => {
       },
     }));
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, qrCode: outputBuffer.toString('base64') }),
-    };
+    return respond(200, { id, qrCode: outputBuffer.toString('base64') });
   } catch (err) {
     console.error('QR generation error:', err);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to generate QR code' }) };
+    return respond(500, { error: 'Failed to generate QR code' });
   }
 };

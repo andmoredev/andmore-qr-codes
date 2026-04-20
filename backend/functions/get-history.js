@@ -6,6 +6,18 @@ const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb'
 const s3 = new S3Client({});
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+};
+
+const respond = (statusCode, body) => ({
+  statusCode,
+  headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+  body: JSON.stringify(body),
+});
+
 exports.handler = async (event) => {
   const userId = event.requestContext?.authorizer?.claims?.sub;
   const bucket = process.env.STORAGE_BUCKET_NAME;
@@ -29,13 +41,9 @@ exports.handler = async (event) => {
       return { id: item.id, url: item.url, createdAt: item.createdAt, qrCodeUrl, imageUrl };
     }));
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items }),
-    };
+    return respond(200, { items });
   } catch (err) {
     console.error('Get history error:', err);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to retrieve history' }) };
+    return respond(500, { error: 'Failed to retrieve history' });
   }
 };
