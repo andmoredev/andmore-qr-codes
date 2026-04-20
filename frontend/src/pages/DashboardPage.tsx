@@ -18,7 +18,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  TooltipProps,
 } from 'recharts';
 import { getDashboardSummary } from '../services/analytics';
 import type { DashboardSummary } from '../types';
@@ -41,18 +40,6 @@ function StatCard({ label, value, icon, trend = 'Last 30 days' }: StatCardProps)
         {value.toLocaleString()}
       </div>
       <span className="text-xs text-text-muted">{trend}</span>
-    </div>
-  );
-}
-
-function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
-  if (!active || !payload || payload.length === 0) return null;
-  return (
-    <div className="bg-surface border border-border rounded-lg px-3 py-2 shadow-lg">
-      <p className="text-xs text-text-muted mb-0.5">{label}</p>
-      <p className="text-sm font-medium text-foreground">
-        {payload[0].value?.toLocaleString()} scans
-      </p>
     </div>
   );
 }
@@ -244,7 +231,13 @@ function ScanTrendChart({ data }: { data: DashboardSummary['scansByDay'] }) {
                 axisLine={{ stroke: '#475569' }}
                 allowDecimals={false}
               />
-              <Tooltip content={<ChartTooltip />} cursor={{ stroke: '#475569', strokeDasharray: '3 3' }} />
+              <Tooltip
+                cursor={{ stroke: '#475569', strokeDasharray: '3 3' }}
+                contentStyle={{ background: '#1E293B', border: '1px solid #475569', color: '#F8FAFC' }}
+                labelStyle={{ color: '#F8FAFC' }}
+                itemStyle={{ color: '#F8FAFC' }}
+                formatter={(value) => [Number(value).toLocaleString(), 'Scans']}
+              />
               <Line
                 type="monotone"
                 dataKey="scans"
