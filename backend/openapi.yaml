@@ -188,20 +188,84 @@ paths:
   /analytics/qrs/{qrId}:
     parameters:
       - { name: qrId, in: path, required: true, schema: { type: string } }
-      - { name: from, in: query, schema: { type: string, format: date } }
-      - { name: to, in: query, schema: { type: string, format: date } }
+      - { name: from, in: query, schema: { type: string, format: date }, description: Start date (YYYY-MM-DD) inclusive. Defaults to today-30d. }
+      - { name: to, in: query, schema: { type: string, format: date }, description: End date (YYYY-MM-DD) inclusive. Defaults to today. }
     get:
       operationId: GetQrAnalytics
+      summary: Scan + click analytics for a single QR (page-backed QRs include per-link click totals)
       tags: [Analytics]
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AnalyticsSummary' } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsSummary' }
+              examples:
+                pageBacked:
+                  summary: Page-backed QR with three link clicks and two scans
+                  value:
+                    qrId: q8c2hd9e1k
+                    totalScans: 2
+                    totalClicks: 3
+                    byDay:
+                      - { bucket: '2026-04-18', count: 1 }
+                      - { bucket: '2026-04-19', count: 2 }
+                      - { bucket: '2026-04-20', count: 2 }
+                    byCountry:
+                      - { country: US, count: 3 }
+                      - { country: MX, count: 2 }
+                    byDevice:
+                      - { deviceType: mobile, count: 4 }
+                      - { deviceType: desktop, count: 1 }
+                    byLink:
+                      - { linkKey: lk_x, count: 2 }
+                      - { linkKey: lk_github, count: 1 }
+                      - { linkKey: lk_blog, count: 0 }
+                direct:
+                  summary: Direct-URL QR (no byLink)
+                  value:
+                    qrId: q1a2b3c4d5
+                    totalScans: 7
+                    totalClicks: 0
+                    byDay:
+                      - { bucket: '2026-04-20', count: 7 }
+                    byCountry:
+                      - { country: US, count: 5 }
+                      - { country: CA, count: 2 }
+                    byDevice:
+                      - { deviceType: mobile, count: 6 }
+                      - { deviceType: desktop, count: 1 }
+        '400': { $ref: '#/components/responses/ClientError' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /analytics/summary:
     get:
       operationId: GetAnalyticsSummary
+      summary: Dashboard summary (totals, last 30 days bucket, recent QRs/pages) for the caller
       tags: [Analytics]
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/DashboardSummary' } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardSummary' }
+              examples:
+                dashboard:
+                  summary: Typical dashboard payload
+                  value:
+                    totalQrs: 4
+                    totalPages: 2
+                    scansLast30Days: 51
+                    clicksLast30Days: 18
+                    recentQrs:
+                      - { qrId: q8c2hd9e1k, name: 'Launch poster', type: page, updatedAt: '2026-04-20T13:30:00.000Z' }
+                      - { qrId: q1a2b3c4d5, name: 'Menu link', type: direct, updatedAt: '2026-04-19T09:02:11.000Z' }
+                    recentPages:
+                      - { pageId: p9k3l2m1n0, slug: andres, displayName: 'Andres Moreno', status: published, updatedAt: '2026-04-20T13:29:55.000Z' }
+                    scansByDay:
+                      - { bucket: '2026-03-22', count: 0 }
+                      - { bucket: '2026-04-19', count: 12 }
+                      - { bucket: '2026-04-20', count: 7 }
 
   # ── Public (no auth) ───────────────────────────────────────────────────────
   /r/{qrId}:

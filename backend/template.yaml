@@ -291,12 +291,6 @@ Resources:
         PagesVerRest:
           Type: Api
           Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}/versions/{n}/restore', Method: POST }
-        AnalyticsQr:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/analytics/qrs/{qrId}', Method: GET }
-        AnalyticsSum:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: /analytics/summary, Method: GET }
       Policies:
         - Statement:
             - Effect: Allow
@@ -319,6 +313,98 @@ Resources:
         Target: es2020
         EntryPoints:
           - _stub.js
+        External:
+          - "@aws-sdk/*"
+
+  # ── Analytics ─────────────────────────────────────────────────────────────
+
+  AnalyticsQrFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: analytics-qr.handler
+      Description: Returns scan/click analytics for a single QR owned by the caller
+      Events:
+        GetQrAnalytics:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: '/analytics/qrs/{qrId}'
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt AppTable.Arn
+                - !GetAtt EventsTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - analytics-qr.js
+        External:
+          - "@aws-sdk/*"
+
+  AnalyticsSummaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: analytics-summary.handler
+      Description: Returns an aggregated dashboard summary for the caller
+      Events:
+        GetAnalyticsSummary:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /analytics/summary
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt AppTable.Arn
+                - !GetAtt EventsTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - analytics-summary.js
         External:
           - "@aws-sdk/*"
 
