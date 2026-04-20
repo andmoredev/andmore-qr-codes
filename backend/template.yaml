@@ -19,6 +19,16 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /andmoredev-auth/CognitoUserPoolUrl
 
+  PublicBaseUrl:
+    Type: String
+    Default: ""
+    Description: >
+      Public-facing origin used by the scan-redirect Lambda to build /p/{slug}
+      URLs (e.g. https://d1234.cloudfront.net). Leave blank on the initial
+      deploy; after the stack is up, read CloudFrontUrl from the Outputs and
+      redeploy with --parameter-overrides PublicBaseUrl=<that value>. Avoids
+      a FrontendDistribution <-> PublicApi <-> Function circular dependency.
+
 Globals:
   Function:
     Timeout: 30
@@ -1079,6 +1089,9 @@ Resources:
       CodeUri: functions/
       Handler: redirect-qr.handler
       Description: Resolves a QR scan to its destination and records a scan event
+      Environment:
+        Variables:
+          PUBLIC_BASE_URL: !Ref PublicBaseUrl
       Events:
         ScanRedirect:
           Type: Api
@@ -1200,6 +1213,31 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
+  PublicApiOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties:
+      OriginRequestPolicyConfig:
+        Name: !Sub "andmore-qr-public-api-${EnvironmentHash}"
+        Comment: >
+          Forwards the viewer headers the redirect/public Lambdas need
+          (UA, Referer, CloudFront-Viewer-Country, X-Forwarded-For,
+          Accept-Language) but OMITS the Host header. Required so API
+          Gateway sees its own execute-api domain as Host instead of the
+          CloudFront domain, which otherwise produces a 403 that CloudFront
+          would rewrite into the SPA via CustomErrorResponses.
+        HeadersConfig:
+          HeaderBehavior: whitelist
+          Headers:
+            - User-Agent
+            - Referer
+            - CloudFront-Viewer-Country
+            - X-Forwarded-For
+            - Accept-Language
+        CookiesConfig:
+          CookieBehavior: none
+        QueryStringsConfig:
+          QueryStringBehavior: all
+
   FrontendDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -1230,19 +1268,19 @@ Resources:
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
-            OriginRequestPolicyId: 33f36d7e-f396-46d9-90e0-52428a34d9dc  # AllViewerAndCloudFrontHeaders-2022-06
+            OriginRequestPolicyId: !Ref PublicApiOriginRequestPolicy
           - PathPattern: /l/*
             TargetOriginId: PublicApiOrigin
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: 33f36d7e-f396-46d9-90e0-52428a34d9dc
+            OriginRequestPolicyId: !Ref PublicApiOriginRequestPolicy
           - PathPattern: /public/*
             TargetOriginId: PublicApiOrigin
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: 33f36d7e-f396-46d9-90e0-52428a34d9dc
+            OriginRequestPolicyId: !Ref PublicApiOriginRequestPolicy
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
