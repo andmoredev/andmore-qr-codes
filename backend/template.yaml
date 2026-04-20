@@ -585,21 +585,28 @@ Resources:
   # Each feature PR replaces its route(s) by (a) creating a new Function with
   # the real handler and (b) removing the Event below. The stubs return 501.
 
-  AuthStubFunction:
+  AnalyticsQrFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: functions/
-      Handler: _stub.handler
-      Description: Foundation stub — returns 501 for authenticated routes not yet implemented
+      Handler: analytics-qr.handler
+      Description: Returns scan/click analytics for a single QR owned by the caller
       Events:
-        AnalyticsQr:
+        GetQrAnalytics:
           Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/analytics/qrs/{qrId}', Method: GET }
-        AnalyticsSum:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: /analytics/summary, Method: GET }
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: '/analytics/qrs/{qrId}'
+            Method: GET
       Policies:
         - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt AppTable.Arn
+                - !GetAtt EventsTable.Arn
             - Effect: Allow
               Action:
                 - logs:CreateLogGroup
@@ -619,7 +626,52 @@ Resources:
         Minify: false
         Target: es2020
         EntryPoints:
-          - _stub.js
+          - analytics-qr.js
+        External:
+          - "@aws-sdk/*"
+
+  AnalyticsSummaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: analytics-summary.handler
+      Description: Returns an aggregated dashboard summary for the caller
+      Events:
+        GetAnalyticsSummary:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /analytics/summary
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt AppTable.Arn
+                - !GetAtt EventsTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - analytics-summary.js
         External:
           - "@aws-sdk/*"
 
@@ -975,12 +1027,12 @@ Resources:
         External:
           - "@aws-sdk/*"
 
-  PublicStubFunction:
+  PublicPageGetFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: functions/
-      Handler: _stub.handler
-      Description: Foundation stub — returns 501 for public routes not yet implemented
+      Handler: public-page-get.handler
+      Description: Returns a published Links Page's public payload for the SPA renderer
       Events:
         PublicPageGet:
           Type: Api
@@ -990,6 +1042,14 @@ Resources:
             Method: GET
       Policies:
         - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/avatars/*"
             - Effect: Allow
               Action:
                 - logs:CreateLogGroup
@@ -1009,7 +1069,7 @@ Resources:
         Minify: false
         Target: es2020
         EntryPoints:
-          - _stub.js
+          - public-page-get.js
         External:
           - "@aws-sdk/*"
 
