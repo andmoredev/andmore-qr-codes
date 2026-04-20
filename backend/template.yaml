@@ -1218,13 +1218,7 @@ Resources:
     Properties:
       OriginRequestPolicyConfig:
         Name: !Sub "andmore-qr-public-api-${EnvironmentHash}"
-        Comment: >
-          Forwards the viewer headers the redirect/public Lambdas need
-          (UA, Referer, CloudFront-Viewer-Country, X-Forwarded-For,
-          Accept-Language) but OMITS the Host header. Required so API
-          Gateway sees its own execute-api domain as Host instead of the
-          CloudFront domain, which otherwise produces a 403 that CloudFront
-          would rewrite into the SPA via CustomErrorResponses.
+        Comment: "Whitelists PublicApi headers; omits Host so API Gateway accepts the request."
         HeadersConfig:
           HeaderBehavior: whitelist
           Headers:
