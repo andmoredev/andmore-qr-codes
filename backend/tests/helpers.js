@@ -18,7 +18,16 @@ const assert = require('node:assert/strict');
 function assertCors(response) {
   assert.ok(response && response.headers, 'response must include headers');
   const h = response.headers;
-  assert.equal(h['Access-Control-Allow-Origin'], '*', 'missing CORS allow-origin');
+  // Handlers echo whatever ALLOWED_ORIGIN the Lambda was configured with
+  // (falling back to "*" when unset). Tests don't pin a specific value — they
+  // just assert the header is present so the envelope behaves correctly
+  // whether the stack is deployed with AllowedOrigin="*" or a real domain.
+  const expectedOrigin = process.env.ALLOWED_ORIGIN || '*';
+  assert.equal(
+    h['Access-Control-Allow-Origin'],
+    expectedOrigin,
+    'missing or mismatched CORS allow-origin',
+  );
   assert.equal(
     h['Access-Control-Allow-Headers'],
     'Content-Type,Authorization',
