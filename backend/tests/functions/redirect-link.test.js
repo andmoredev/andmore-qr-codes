@@ -72,6 +72,16 @@ test('redirect-link happy path 302s to link URL and writes click event when src=
   const item = puts[0].args[0].input.Item;
   assert.equal(item.qrId, 'qr-origin');
   assert.equal(item.linkKey, 'lk-abc');
+
+  // expiresAt drives the EventsTable TTL — must be ~ now + EVENT_TTL_SECONDS.
+  const { EVENT_TTL_SECONDS } = require('../../functions/shared/repo/eventsTable');
+  const expectedExpiresAt = Math.floor(Date.now() / 1000) + EVENT_TTL_SECONDS;
+  assert.equal(typeof item.expiresAt, 'number');
+  assert.ok(item.expiresAt > 0, 'expiresAt must be a positive epoch-seconds value');
+  assert.ok(
+    Math.abs(item.expiresAt - expectedExpiresAt) <= 60,
+    `expiresAt ${item.expiresAt} should be within 60s of ${expectedExpiresAt}`,
+  );
 });
 
 test('redirect-link returns 404 for a malformed clickId', async () => {

@@ -63,6 +63,20 @@ test('redirect-qr direct type 302s to destinationUrl with CORS headers', async (
   assert.equal(res.statusCode, 302);
   assertCors(res);
   assert.equal(res.headers.Location, 'https://go.example/');
+
+  // Scan event persisted with an expiresAt driving the EventsTable TTL.
+  const puts = ddbMock.commandCalls(PutCommand);
+  assert.equal(puts.length, 1);
+  const item = puts[0].args[0].input.Item;
+  assert.equal(item.qrId, 'qr-1');
+  const { EVENT_TTL_SECONDS } = require('../../functions/shared/repo/eventsTable');
+  const expectedExpiresAt = Math.floor(Date.now() / 1000) + EVENT_TTL_SECONDS;
+  assert.equal(typeof item.expiresAt, 'number');
+  assert.ok(item.expiresAt > 0, 'expiresAt must be a positive epoch-seconds value');
+  assert.ok(
+    Math.abs(item.expiresAt - expectedExpiresAt) <= 60,
+    `expiresAt ${item.expiresAt} should be within 60s of ${expectedExpiresAt}`,
+  );
 });
 
 test('redirect-qr page type + published 302s to /p/{slug}?src=<qrId>', async () => {
