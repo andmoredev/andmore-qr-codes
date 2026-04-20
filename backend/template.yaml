@@ -329,18 +329,6 @@ Resources:
       Handler: _stub.handler
       Description: Foundation stub — returns 501 for public routes not yet implemented
       Events:
-        ScanRedirect:
-          Type: Api
-          Properties:
-            RestApiId: !Ref PublicApi
-            Path: '/r/{qrId}'
-            Method: GET
-        LinkRedirect:
-          Type: Api
-          Properties:
-            RestApiId: !Ref PublicApi
-            Path: '/l/{clickId}'
-            Method: GET
         PublicPageGet:
           Type: Api
           Properties:
@@ -369,6 +357,98 @@ Resources:
         Target: es2020
         EntryPoints:
           - _stub.js
+        External:
+          - "@aws-sdk/*"
+
+  RedirectQrFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: redirect-qr.handler
+      Description: Resolves a QR scan to its destination and records a scan event
+      Events:
+        ScanRedirect:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: '/r/{qrId}'
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt EventsTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - redirect-qr.js
+        External:
+          - "@aws-sdk/*"
+
+  RedirectLinkFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: redirect-link.handler
+      Description: Resolves a Links Page link click to its destination and records a click event
+      Events:
+        LinkRedirect:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: '/l/{clickId}'
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt EventsTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - redirect-link.js
         External:
           - "@aws-sdk/*"
 
