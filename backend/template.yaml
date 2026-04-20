@@ -341,12 +341,6 @@ Resources:
             RestApiId: !Ref PublicApi
             Path: '/l/{clickId}'
             Method: GET
-        PublicPageGet:
-          Type: Api
-          Properties:
-            RestApiId: !Ref PublicApi
-            Path: '/public/pages/{slug}'
-            Method: GET
       Policies:
         - Statement:
             - Effect: Allow
@@ -369,6 +363,52 @@ Resources:
         Target: es2020
         EntryPoints:
           - _stub.js
+        External:
+          - "@aws-sdk/*"
+
+  PublicPageGetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: public-page-get.handler
+      Description: Returns a published Links Page's public payload for the SPA renderer
+      Events:
+        PublicPageGet:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: '/public/pages/{slug}'
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/avatars/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - public-page-get.js
         External:
           - "@aws-sdk/*"
 
