@@ -1134,9 +1134,6 @@ Resources:
       CodeUri: functions/
       Handler: redirect-qr.handler
       Description: Resolves a QR scan to its destination and records a scan event
-      Environment:
-        Variables:
-          PUBLIC_BASE_URL: !Ref PublicBaseUrl
       Events:
         ScanRedirect:
           Type: Api
@@ -1183,9 +1180,6 @@ Resources:
       CodeUri: functions/
       Handler: redirect-link.handler
       Description: Resolves a Links Page link click to its destination and records a click event
-      Environment:
-        Variables:
-          PUBLIC_BASE_URL: !Ref PublicBaseUrl
       Events:
         LinkRedirect:
           Type: Api

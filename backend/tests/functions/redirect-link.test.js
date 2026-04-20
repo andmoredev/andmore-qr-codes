@@ -28,7 +28,6 @@ beforeEach(() => {
   setEnv({
     APP_TABLE_NAME: 'AppTable',
     EVENTS_TABLE_NAME: 'EventsTable',
-    PUBLIC_BASE_URL: 'https://qr.example.com',
   });
   resetStubs();
 });
@@ -90,5 +89,5 @@ test('redirect-link 302s to /p/unavailable for a malformed clickId', async () =>
 
   assert.equal(res.statusCode, 302);
   assertCors(res);
-  assert.equal(res.headers.Location, 'https://qr.example.com/p/unavailable');
+  assert.equal(res.headers.Location, '/p/unavailable');
 });

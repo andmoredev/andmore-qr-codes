@@ -31,7 +31,6 @@ beforeEach(() => {
   setEnv({
     APP_TABLE_NAME: 'AppTable',
     EVENTS_TABLE_NAME: 'EventsTable',
-    PUBLIC_BASE_URL: 'https://qr.example.com',
   });
   // Reset the module cache so env changes are picked up on each require().
   resetStubs();
@@ -99,7 +98,7 @@ test('redirect-qr page type + published 302s to /p/{slug}?src=<qrId>', async () 
 
   assert.equal(res.statusCode, 302);
   assertCors(res);
-  assert.equal(res.headers.Location, 'https://qr.example.com/p/me?src=qr-2');
+  assert.equal(res.headers.Location, '/p/me?src=qr-2');
 });
 
 test('redirect-qr page type + unpublished 302s to /p/unavailable', async () => {
@@ -133,7 +132,7 @@ test('redirect-qr page type + unpublished 302s to /p/unavailable', async () => {
 
   assert.equal(res.statusCode, 302);
   assertCors(res);
-  assert.equal(res.headers.Location, 'https://qr.example.com/p/unavailable');
+  assert.equal(res.headers.Location, '/p/unavailable');
 });
 
 test('redirect-qr 302s to /p/unavailable with CORS for unknown or disabled QR', async () => {
@@ -147,7 +146,7 @@ test('redirect-qr 302s to /p/unavailable with CORS for unknown or disabled QR', 
 
   assert.equal(res.statusCode, 302);
   assertCors(res);
-  assert.equal(res.headers.Location, 'https://qr.example.com/p/unavailable');
+  assert.equal(res.headers.Location, '/p/unavailable');
 });
 
 test('redirect-qr 302s to /p/unavailable when getQrLookup throws', async () => {
@@ -161,5 +160,5 @@ test('redirect-qr 302s to /p/unavailable when getQrLookup throws', async () => {
 
   assert.equal(res.statusCode, 302);
   assertCors(res);
-  assert.equal(res.headers.Location, 'https://qr.example.com/p/unavailable');
+  assert.equal(res.headers.Location, '/p/unavailable');
 });

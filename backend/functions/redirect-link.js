@@ -55,28 +55,13 @@ const decodeClickId = (clickId) => {
 };
 
 /**
- * Build the `/p/unavailable` URL for this request. Always returns a string
- * suitable for a `Location:` header.
- *
- * Preference order:
- *  1. `PUBLIC_BASE_URL` env var (set by CFN to the CloudFront domain).
- *  2. `https://${Host}` from the viewer request — CloudFront's
- *     PublicApiOriginRequestPolicy strips Host before it reaches the Lambda,
- *     so this mostly helps outside CloudFront (e.g. direct API Gateway hit
- *     during a test).
- *  3. Last-resort: the **relative** path `/p/unavailable`. Browsers resolve
- *     relative `Location` headers against the request URL, which is the
- *     CloudFront domain the viewer actually hit — exactly the destination we
- *     want. This guarantees we never return a non-302 from this handler.
+ * `/p/*` redirects are emitted as **relative** `Location:` values — the
+ * browser resolves them against the viewer's effective request URI (the
+ * CloudFront domain). Removes dependency on `PUBLIC_BASE_URL` and avoids the
+ * `event.headers.Host` footgun (CloudFront strips Host before API Gateway,
+ * so Host would point at the execute-api domain which has no `/p/*` route).
  */
-const buildFallbackUrl = (event) => {
-  const publicBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
-  if (publicBase) return `${publicBase}/p/unavailable`;
-  const hostHeader = getHeader(event?.headers, 'Host');
-  if (hostHeader) return `https://${hostHeader}/p/unavailable`;
-  // Relative fallback — resolved against the viewer's CloudFront URL.
-  return '/p/unavailable';
-};
+const PAGE_UNAVAILABLE = '/p/unavailable';
 
 /**
  * GET /l/{clickId} — resolve a link click on a Links Page and 302 to the link URL.
@@ -89,13 +74,11 @@ const buildFallbackUrl = (event) => {
  * keeps the viewer on the friendly "not available" page instead.
  */
 exports.handler = async (event) => {
-  const fallbackLocation = buildFallbackUrl(event);
-
   const clickId = event.pathParameters?.clickId;
-  if (!clickId) return redirect(fallbackLocation);
+  if (!clickId) return redirect(PAGE_UNAVAILABLE);
 
   const decoded = decodeClickId(clickId);
-  if (!decoded) return redirect(fallbackLocation);
+  if (!decoded) return redirect(PAGE_UNAVAILABLE);
 
   const { slug, linkKey } = decoded;
 
@@ -104,14 +87,14 @@ exports.handler = async (event) => {
     page = await getPageBySlug(slug);
   } catch (err) {
     console.error('getPageBySlug failed', { slug, err });
-    return redirect(fallbackLocation);
+    return redirect(PAGE_UNAVAILABLE);
   }
   if (!page || !Array.isArray(page.links)) {
-    return redirect(fallbackLocation);
+    return redirect(PAGE_UNAVAILABLE);
   }
 
   const link = page.links.find((l) => l && l.linkKey === linkKey);
-  if (!link || !link.url) return redirect(fallbackLocation);
+  if (!link || !link.url) return redirect(PAGE_UNAVAILABLE);
 
   const src = event.queryStringParameters?.src;
   if (src) {

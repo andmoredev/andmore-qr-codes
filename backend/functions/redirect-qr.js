@@ -42,28 +42,18 @@ const getSourceIp = (event) => {
 };
 
 /**
- * Build the `/p/unavailable` URL for this request. Always returns a string
- * suitable for a `Location:` header.
+ * All `/p/*` redirects are emitted as **relative** `Location:` values. Browsers
+ * resolve relative `Location` against the viewer's effective request URI,
+ * which is the CloudFront domain the phone actually hit — exactly where we
+ * want them to land. Using relative URLs avoids two recurring footguns:
  *
- * Preference order:
- *  1. `PUBLIC_BASE_URL` env var (set by CFN to the CloudFront domain).
- *  2. `https://${Host}` from the viewer request — note CloudFront's
- *     PublicApiOriginRequestPolicy strips Host before it reaches the Lambda,
- *     so this only helps when the function is invoked outside CloudFront
- *     (e.g. directly via API Gateway during a test).
- *  3. Last-resort: the **relative** path `/p/unavailable`. Browsers resolve
- *     relative `Location` headers against the request URL, which is the
- *     CloudFront domain the viewer actually hit — exactly the destination we
- *     want. This guarantees we never return a non-302 from this handler.
+ *  - `PUBLIC_BASE_URL` env var accidentally empty after a deploy that forgot
+ *    `--parameter-overrides PublicBaseUrl=...`, which produced a 302 to `""`.
+ *  - `event.headers.Host` pointing at API Gateway's execute-api domain
+ *    (CloudFront's origin-request policy strips the viewer Host), producing
+ *    a 302 to an API Gateway URL that has no `/p/*` route and returns 403.
  */
-const buildFallbackUrl = (event) => {
-  const publicBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
-  if (publicBase) return `${publicBase}/p/unavailable`;
-  const hostHeader = getHeader(event?.headers, 'Host');
-  if (hostHeader) return `https://${hostHeader}/p/unavailable`;
-  // Relative fallback — resolved against the viewer's CloudFront URL.
-  return '/p/unavailable';
-};
+const PAGE_UNAVAILABLE = '/p/unavailable';
 
 /**
  * GET /r/{qrId} — resolve a QR scan, record a scan event, 302 to destination.
@@ -75,58 +65,44 @@ const buildFallbackUrl = (event) => {
  * keeps the viewer on the friendly "not available" page instead.
  */
 exports.handler = async (event) => {
-  const fallbackLocation = buildFallbackUrl(event);
-
   const qrId = event.pathParameters?.qrId;
-  if (!qrId) return redirect(fallbackLocation);
+  if (!qrId) return redirect(PAGE_UNAVAILABLE);
 
   let qrLookup;
   try {
     qrLookup = await getQrLookup(qrId);
   } catch (err) {
     console.error('getQrLookup failed', { qrId, err });
-    return redirect(fallbackLocation);
+    return redirect(PAGE_UNAVAILABLE);
   }
 
   if (!qrLookup || qrLookup.enabled === false) {
-    return redirect(fallbackLocation);
+    return redirect(PAGE_UNAVAILABLE);
   }
 
-  // PUBLIC_BASE_URL comes from the CFN PublicBaseUrl parameter. Host header is
-  // only a fallback — when CloudFront is fronting PublicApi the Host header is
-  // stripped (the origin request policy omits it so API Gateway doesn't 403),
-  // so relying on it alone would redirect to the API Gateway domain instead of
-  // the user-facing CloudFront/custom domain.
-  const publicBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
-  const hostHeader = getHeader(event.headers, 'Host') ?? '';
-  const baseUrl = publicBase || (hostHeader ? `https://${hostHeader}` : '');
   let destination;
 
   if (qrLookup.type === 'direct') {
-    if (!qrLookup.destinationUrl) return redirect(fallbackLocation);
+    if (!qrLookup.destinationUrl) return redirect(PAGE_UNAVAILABLE);
     destination = qrLookup.destinationUrl;
   } else if (qrLookup.type === 'page') {
     const { userId, pageId } = qrLookup;
-    if (!userId || !pageId) return redirect(fallbackLocation);
-    if (!baseUrl) {
-      console.error('PUBLIC_BASE_URL is not configured and Host header is missing');
-      return redirect(fallbackLocation);
-    }
+    if (!userId || !pageId) return redirect(PAGE_UNAVAILABLE);
     let page;
     try {
       page = await getPageByUser(userId, pageId);
     } catch (err) {
       console.error('getPageByUser failed', { userId, pageId, err });
-      return redirect(fallbackLocation);
+      return redirect(PAGE_UNAVAILABLE);
     }
-    if (!page) return redirect(fallbackLocation);
+    if (!page) return redirect(PAGE_UNAVAILABLE);
     if (page.status !== 'published') {
-      destination = `${baseUrl}/p/unavailable`;
+      destination = PAGE_UNAVAILABLE;
     } else {
-      destination = `${baseUrl}/p/${page.slug}?src=${encodeURIComponent(qrId)}`;
+      destination = `/p/${encodeURIComponent(page.slug)}?src=${encodeURIComponent(qrId)}`;
     }
   } else {
-    return redirect(fallbackLocation);
+    return redirect(PAGE_UNAVAILABLE);
   }
 
   const ua = getHeader(event.headers, 'User-Agent');
