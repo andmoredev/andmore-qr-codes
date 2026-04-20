@@ -267,30 +267,6 @@ Resources:
         QrsVerRestore:
           Type: Api
           Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}/versions/{n}/restore', Method: POST }
-        PagesList:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: /pages, Method: GET }
-        PagesCreate:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: /pages, Method: POST }
-        PagesGet:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}', Method: GET }
-        PagesUpdate:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}', Method: PATCH }
-        PagesDelete:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}', Method: DELETE }
-        PagesPublish:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}/publish', Method: POST }
-        PagesVerList:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}/versions', Method: GET }
-        PagesVerRest:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}/versions/{n}/restore', Method: POST }
         AnalyticsQr:
           Type: Api
           Properties: { RestApiId: !Ref QrRestApi, Path: '/analytics/qrs/{qrId}', Method: GET }
@@ -319,6 +295,358 @@ Resources:
         Target: es2020
         EntryPoints:
           - _stub.js
+        External:
+          - "@aws-sdk/*"
+
+  # ── Links Pages CRUD (workstream C) ───────────────────────────────────────
+
+  PagesListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: pages-list.handler
+      Description: Lists the caller's Links Pages
+      Events:
+        PagesList:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: /pages, Method: GET }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/avatars/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - pages-list.js
+        External:
+          - "@aws-sdk/*"
+
+  PagesCreateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: pages-create.handler
+      Description: Creates a new Links Page (draft) with atomic slug reservation
+      Events:
+        PagesCreate:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: /pages, Method: POST }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/avatars/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - pages-create.js
+        External:
+          - "@aws-sdk/*"
+
+  PagesGetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: pages-get.handler
+      Description: Fetches a single Links Page owned by the caller
+      Events:
+        PagesGet:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}', Method: GET }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/avatars/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - pages-get.js
+        External:
+          - "@aws-sdk/*"
+
+  PagesUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: pages-update.handler
+      Description: Updates a Links Page, snapshotting prior state and reserving a new slug when changed
+      Events:
+        PagesUpdate:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}', Method: PATCH }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/avatars/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - pages-update.js
+        External:
+          - "@aws-sdk/*"
+
+  PagesDeleteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: pages-delete.handler
+      Description: Hard-deletes a Links Page, slug reservation, and every version snapshot
+      Events:
+        PagesDelete:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}', Method: DELETE }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+                - dynamodb:BatchWriteItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - pages-delete.js
+        External:
+          - "@aws-sdk/*"
+
+  PagesPublishFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: pages-publish.handler
+      Description: Toggles a Links Page between draft and published, snapshotting each change
+      Events:
+        PagesPublish:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}/publish', Method: POST }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/avatars/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - pages-publish.js
+        External:
+          - "@aws-sdk/*"
+
+  PagesVersionsListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: pages-versions-list.handler
+      Description: Lists every snapshot for a Links Page, newest first
+      Events:
+        PagesVerList:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}/versions', Method: GET }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - pages-versions-list.js
+        External:
+          - "@aws-sdk/*"
+
+  PagesVersionsRestoreFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: pages-versions-restore.handler
+      Description: Restores a Links Page to a prior snapshot, reserving a new slug if changed
+      Events:
+        PagesVerRest:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}/versions/{n}/restore', Method: POST }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/avatars/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - pages-versions-restore.js
         External:
           - "@aws-sdk/*"
 
