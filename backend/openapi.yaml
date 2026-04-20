@@ -326,18 +326,50 @@ paths:
       summary: Resolve a QR scan to its destination, recording a scan event
       tags: [Public]
       responses:
-        '302': { description: Redirect to destination }
-        '404': { description: QR not found or disabled }
+        '302':
+          description: Redirect to destination
+          headers:
+            Location:
+              description: |
+                Target URL for the scan. For `type=direct` QRs this is the configured
+                `destinationUrl`. For `type=page` QRs with a published page this is
+                `https://{host}/p/{slug}?src={qrId}`; when the page is unpublished the
+                location is `https://{host}/p/unavailable`.
+              schema: { type: string, format: uri }
+              example: https://example.com/
+        '404':
+          description: QR not found or disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { error: { type: string } }
+              example: { error: 'Not found' }
 
   /l/{clickId}:
-    parameters: [{ name: clickId, in: path, required: true, schema: { type: string } }]
+    parameters:
+      - { name: clickId, in: path, required: true, schema: { type: string }, description: 'base64url-encoded `{slug}:{linkKey}`' }
+      - { name: src, in: query, required: false, schema: { type: string }, description: 'Originating QR id; when present, a click event is recorded.' }
     get:
       operationId: ClickRedirect
       summary: Resolve a link click, recording a click event
       tags: [Public]
       responses:
-        '302': { description: Redirect to destination }
-        '404': { description: Link not found }
+        '302':
+          description: Redirect to the link's destination URL
+          headers:
+            Location:
+              description: The configured `url` of the matched link on the page.
+              schema: { type: string, format: uri }
+              example: https://x.com/example
+        '404':
+          description: Malformed clickId, page not found, or link not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { error: { type: string } }
+              example: { error: 'Not found' }
 
   /public/pages/{slug}:
     parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
