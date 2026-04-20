@@ -8,9 +8,9 @@
  *   - scansByDay bucket across the last 30 days
  *   - byCountry: top-10 countries across all scan events in the window
  *
- * Performance note (MVP): click/scan counts are derived by fan-out Query per QR
- * over the EventsTable (O(Nqr × events)). Acceptable while Nqr is small; when
- * per-user QR counts grow we should swap to DynamoDB Streams → aggregate table.
+ * Scan/click counts are derived by fan-out Query per QR (and per link, for
+ * page-backed QRs) over the AggregatesTable. Each per-QR query window is ~31
+ * rows instead of `scansLast30Days` raw events — orders of magnitude cheaper.
  */
 const { respond } = require('./shared/cors');
 const {
@@ -18,7 +18,10 @@ const {
   listUserPages,
   getPageByUser,
 } = require('./shared/repo/appTable');
-const { queryScans, queryClicks } = require('./shared/repo/eventsTable');
+const {
+  queryDailyTotals,
+  queryCountryBreakdown,
+} = require('./shared/repo/aggregatesTable');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CONCURRENCY = 10;
@@ -51,6 +54,8 @@ const enumerateDays = (fromDate, toDate) => {
 
 const isLive = (item) => item && item.deleted !== true;
 
+const sumCounts = (rows) => rows.reduce((acc, r) => acc + Number(r.count ?? 0), 0);
+
 exports.handler = async (event) => {
   const userId = event.requestContext?.authorizer?.claims?.sub;
   if (!userId) return respond(401, { error: 'Unauthorized' });
@@ -65,8 +70,8 @@ exports.handler = async (event) => {
     const todayUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const fromDate = new Date(todayUtcMidnight.getTime() - 30 * DAY_MS);
     const toDate = new Date(todayUtcMidnight.getTime() + (DAY_MS - 1));
-    const fromIso = fromDate.toISOString();
-    const toIso = toDate.toISOString();
+    const fromDay = fromDate.toISOString().slice(0, 10);
+    const toDay = toDate.toISOString().slice(0, 10);
 
     // For click counts, we need each page-backed QR's linkKeys. Batch the page
     // lookups up front so we can avoid repeating them per-QR when multiple QRs
@@ -78,35 +83,48 @@ exports.handler = async (event) => {
     const fetchedPages = await pMap(missingPageIds, CONCURRENCY, (pageId) => getPageByUser(userId, pageId));
     fetchedPages.forEach((p, i) => { if (p) pagesById.set(missingPageIds[i], p); });
 
-    // Fan-out event queries, capped at CONCURRENCY.
-    const qrEventResults = await pMap(liveQrs, CONCURRENCY, async (qr) => {
-      const scans = await queryScans({ qrId: qr.qrId, from: fromIso, to: toIso });
-      let clicks = [];
+    // Fan-out aggregate queries, capped at CONCURRENCY.
+    const qrAggregateResults = await pMap(liveQrs, CONCURRENCY, async (qr) => {
+      const qrPk = `QR#${qr.qrId}`;
+      const [scanDaily, scanCountry] = await Promise.all([
+        queryDailyTotals({ pk: qrPk, from: fromDay, to: toDay }),
+        queryCountryBreakdown({ pk: qrPk, from: fromDay, to: toDay }),
+      ]);
+
+      let clickDaily = [];
       if (qr.type === 'page' && qr.pageId) {
         const page = pagesById.get(qr.pageId);
         const linkKeys = Array.isArray(page?.links) ? page.links.map((l) => l.linkKey).filter(Boolean) : [];
         if (linkKeys.length > 0) {
-          const batches = await Promise.all(
-            linkKeys.map((linkKey) => queryClicks({ qrId: qr.qrId, linkKey, from: fromIso, to: toIso }))
+          const linkBatches = await Promise.all(
+            linkKeys.map((linkKey) => queryDailyTotals({
+              pk: `LINK#${qr.qrId}#${linkKey}`,
+              from: fromDay,
+              to: toDay,
+            })),
           );
-          clicks = batches.flat();
+          clickDaily = linkBatches.flat();
         }
       }
-      return { scans, clicks };
+
+      return { scanDaily, scanCountry, clickDaily };
     });
 
     let scansLast30Days = 0;
     let clicksLast30Days = 0;
     const scansByDay = new Map();
     const scansByCountry = new Map();
-    for (const { scans, clicks } of qrEventResults) {
-      scansLast30Days += scans.length;
-      clicksLast30Days += clicks.length;
-      for (const evt of scans) {
-        const bucket = typeof evt.ts === 'string' ? evt.ts.slice(0, 10) : null;
-        if (bucket) scansByDay.set(bucket, (scansByDay.get(bucket) ?? 0) + 1);
-        const country = typeof evt.country === 'string' ? evt.country.trim() : '';
-        if (country) scansByCountry.set(country, (scansByCountry.get(country) ?? 0) + 1);
+    for (const { scanDaily, scanCountry, clickDaily } of qrAggregateResults) {
+      scansLast30Days += sumCounts(scanDaily);
+      clicksLast30Days += sumCounts(clickDaily);
+      for (const r of scanDaily) {
+        if (!r.date) continue;
+        scansByDay.set(r.date, (scansByDay.get(r.date) ?? 0) + Number(r.count ?? 0));
+      }
+      for (const r of scanCountry) {
+        const country = typeof r.country === 'string' ? r.country.trim() : '';
+        if (!country) continue;
+        scansByCountry.set(country, (scansByCountry.get(country) ?? 0) + Number(r.count ?? 0));
       }
     }
 

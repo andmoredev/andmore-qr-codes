@@ -43,6 +43,7 @@ Globals:
         HISTORY_TABLE_NAME: !Ref HistoryTable
         APP_TABLE_NAME: !Ref AppTable
         EVENTS_TABLE_NAME: !Ref EventsTable
+        AGGREGATES_TABLE_NAME: !Ref AggregatesTable
 
 Resources:
   # ── Auth ──────────────────────────────────────────────────────────────────
@@ -135,6 +136,26 @@ Resources:
           KeyType: RANGE
 
   EventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+
+  AggregatesTable:
     Type: AWS::DynamoDB::Table
     Properties:
       BillingMode: PAY_PER_REQUEST
@@ -619,6 +640,7 @@ Resources:
               Resource:
                 - !GetAtt AppTable.Arn
                 - !GetAtt EventsTable.Arn
+                - !GetAtt AggregatesTable.Arn
             - Effect: Allow
               Action:
                 - logs:CreateLogGroup
@@ -664,6 +686,7 @@ Resources:
               Resource:
                 - !GetAtt AppTable.Arn
                 - !GetAtt EventsTable.Arn
+                - !GetAtt AggregatesTable.Arn
             - Effect: Allow
               Action:
                 - logs:CreateLogGroup
@@ -1223,6 +1246,65 @@ Resources:
         External:
           - "@aws-sdk/*"
 
+  # ── Stream-driven aggregates (workstream T) ───────────────────────────────
+
+  AggregatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: aggregator.handler
+      Description: DynamoDB Stream consumer that maintains daily aggregates in AggregatesTable
+      Environment:
+        Variables:
+          AGGREGATES_TABLE_NAME: !Ref AggregatesTable
+      Events:
+        EventsStream:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt EventsTable.StreamArn
+            StartingPosition: TRIM_HORIZON
+            BatchSize: 100
+            MaximumBatchingWindowInSeconds: 2
+            BisectBatchOnFunctionError: true
+            MaximumRetryAttempts: 3
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:UpdateItem
+              Resource: !GetAtt AggregatesTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:DescribeStream
+                - dynamodb:GetRecords
+                - dynamodb:GetShardIterator
+                - dynamodb:ListStreams
+              Resource: !GetAtt EventsTable.StreamArn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - aggregator.js
+        External:
+          - "@aws-sdk/*"
+
   # ── Frontend hosting ──────────────────────────────────────────────────────
 
   FrontendBucket:
@@ -1344,6 +1426,10 @@ Outputs:
   EventsTableName:
     Description: DynamoDB table for scan and click events
     Value: !Ref EventsTable
+
+  AggregatesTableName:
+    Description: DynamoDB table for daily scan/click aggregates
+    Value: !Ref AggregatesTable
 
   CognitoUserPoolId:
     Description: Cognito User Pool ID
