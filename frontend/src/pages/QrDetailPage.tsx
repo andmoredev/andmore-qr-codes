@@ -24,6 +24,7 @@ import {
 import type { QrCode } from '../types';
 import { VersionsPanel } from '../components/VersionsPanel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { QrAnalyticsWidget } from '../components/analytics/QrAnalyticsWidget';
 
 export function QrDetailPage() {
   const { qrId } = useParams<{ qrId: string }>();
@@ -328,11 +329,7 @@ export function QrDetailPage() {
             </div>
           </section>
 
-          {/* Analytics placeholder slot — wired by workstream I */}
-          <div id="analytics-slot" className="bg-surface border border-border rounded-xl p-6 text-sm text-text-muted">
-            {/* TODO wired by I */}
-            Analytics will appear here.
-          </div>
+          {qrId && <QrAnalyticsWidget qrId={qrId} />}
         </div>
 
         {/* Right: versions sidebar */}
