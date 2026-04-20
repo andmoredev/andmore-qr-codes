@@ -31,7 +31,7 @@ import type {
 } from '../types';
 import { AvatarUploader } from '../components/AvatarUploader';
 import { LinkRow } from '../components/LinkRow';
-import { LivePagePreview } from '../components/LivePagePreview';
+import { PublicPageView, type PublicPageViewModel } from '../components/PublicPageView';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { VersionsPanel } from '../components/VersionsPanel';
 
@@ -118,6 +118,31 @@ function formFromPage(p: LinkPage): FormState {
     avatarUrl: p.avatarUrl ?? null,
     avatarBase64: null,
     avatarCleared: false,
+  };
+}
+
+/**
+ * Adapt the editor form state into a `PublicPageView`-compatible shape so the
+ * live preview uses the same renderer as the public `/p/:slug` route.
+ * `clickHref` is omitted intentionally — the preview renders `interactive=false`.
+ */
+function buildPreviewPageShape(
+  form: FormState,
+  avatarPreviewSrc: string | null,
+): PublicPageViewModel {
+  return {
+    displayName: form.displayName.trim() || 'Your name',
+    bio: form.bio,
+    avatarUrl: avatarPreviewSrc,
+    theme: form.theme,
+    accentColor: form.accentColor,
+    links: form.links.map((l) => ({
+      linkKey: l.linkKey,
+      kind: l.kind,
+      label: l.label,
+      icon: l.icon,
+      order: l.order,
+    })),
   };
 }
 
@@ -436,20 +461,12 @@ export function PageEditorPage() {
         {/* Live preview — on mobile this sits below (via order) */}
         <section className="order-2 lg:order-1 space-y-3 lg:sticky lg:top-6 lg:self-start">
           <h2 className="text-sm font-medium text-text-muted">Live preview</h2>
-          <LivePagePreview
-            displayName={form.displayName.trim() || 'Your name'}
-            bio={form.bio}
-            avatarSrc={avatarPreviewSrc}
-            theme={form.theme}
-            accentColor={form.accentColor}
-            links={form.links.map((l) => ({
-              linkKey: l.linkKey,
-              kind: l.kind,
-              label: l.label,
-              url: l.url,
-              icon: l.icon,
-            }))}
-          />
+          <div className="rounded-xl border border-border overflow-hidden">
+            <PublicPageView
+              page={buildPreviewPageShape(form, avatarPreviewSrc)}
+              interactive={false}
+            />
+          </div>
         </section>
 
         {/* Form */}
