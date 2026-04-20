@@ -124,6 +124,23 @@ async function deletePage({ userId, pageId, slug }) {
   await dynamo.send(new TransactWriteCommand({ TransactItems: items }));
 }
 
+/**
+ * Atomically write a QR's new main entity state and its new version snapshot.
+ * The caller is responsible for populating composite keys in both items; this
+ * helper only coordinates the two puts in a single transaction so the
+ * `currentVersion` bump is never torn.
+ *
+ * @param {{ qrItem: object, versionItem: object }} args
+ */
+async function updateQrWithVersion({ qrItem, versionItem }) {
+  await dynamo.send(new TransactWriteCommand({
+    TransactItems: [
+      { Put: { TableName: TABLE(), Item: qrItem } },
+      { Put: { TableName: TABLE(), Item: versionItem } },
+    ],
+  }));
+}
+
 module.exports = {
   keys,
   getByKey,
@@ -138,4 +155,5 @@ module.exports = {
   listPageVersions,
   reserveSlugAndPutPage,
   deletePage,
+  updateQrWithVersion,
 };
