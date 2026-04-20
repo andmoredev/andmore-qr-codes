@@ -8,9 +8,9 @@ interface Props {
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
-  loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  busy?: boolean;
 }
 
 export function ConfirmDialog({
@@ -20,18 +20,18 @@ export function ConfirmDialog({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   destructive = false,
-  loading = false,
   onConfirm,
   onCancel,
+  busy = false,
 }: Props) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !loading) onCancel();
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !busy) onCancel();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, loading, onCancel]);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, busy, onCancel]);
 
   if (!open) return null;
 
@@ -40,52 +40,54 @@ export function ConfirmDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+      onClick={busy ? undefined : onCancel}
     >
       <div
-        className="absolute inset-0 bg-black/60"
-        onClick={() => !loading && onCancel()}
-        aria-hidden="true"
-      />
-      <div className="relative w-full max-w-md bg-surface border border-border rounded-xl p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-4 mb-3">
-          <div className="flex items-center gap-2">
-            {destructive && <AlertTriangle className="w-5 h-5 text-destructive" />}
-            <h2 id="confirm-dialog-title" className="text-base font-semibold text-foreground">
+        className="bg-surface border border-border rounded-xl w-full max-w-md p-5 space-y-4 shadow-xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-3">
+          <div
+            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+              destructive ? 'bg-destructive/10 text-destructive' : 'bg-accent/10 text-accent'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <h3 id="confirm-dialog-title" className="text-sm font-semibold text-foreground">
               {title}
-            </h2>
+            </h3>
+            {description && <div className="text-sm text-text-muted">{description}</div>}
           </div>
           <button
             onClick={onCancel}
-            disabled={loading}
+            disabled={busy}
             className="text-text-muted hover:text-foreground transition-colors disabled:opacity-50 cursor-pointer"
             aria-label="Close dialog"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
-        {description && (
-          <div className="text-sm text-text-muted mb-5">{description}</div>
-        )}
-        <div className="flex items-center justify-end gap-2">
+
+        <div className="flex items-center justify-end gap-2 pt-2">
           <button
             onClick={onCancel}
-            disabled={loading}
-            className="px-3 py-2 text-sm text-text-muted hover:text-foreground transition-colors duration-150 disabled:opacity-50 cursor-pointer"
+            disabled={busy}
+            className="px-3 py-1.5 text-sm rounded-lg border border-border text-foreground hover:bg-muted transition-colors duration-150 disabled:opacity-50 cursor-pointer"
           >
             {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
-            disabled={loading}
-            className={`px-3 py-2 text-sm font-medium rounded-lg text-white transition-colors duration-150 cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-              destructive
-                ? 'bg-destructive hover:bg-red-600'
-                : 'bg-accent hover:bg-accent-hover'
+            disabled={busy}
+            className={`px-3 py-1.5 text-sm rounded-lg text-white transition-colors duration-150 disabled:opacity-50 cursor-pointer inline-flex items-center gap-2 ${
+              destructive ? 'bg-destructive hover:bg-destructive/90' : 'bg-accent hover:bg-accent-hover'
             }`}
           >
-            {loading && (
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            {busy && (
+              <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
             )}
             {confirmLabel}
           </button>

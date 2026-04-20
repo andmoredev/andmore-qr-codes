@@ -16,7 +16,9 @@ import {
   createPage,
   deletePage,
   getPage,
+  listPageVersions,
   publishPage,
+  restorePageVersion,
   updatePage,
 } from '../services/pages';
 import type {
@@ -618,11 +620,13 @@ export function PageEditorPage() {
 
           {mode === 'edit' && page && (
             <VersionsPanel
-              pageId={page.pageId}
-              currentVersion={page.currentVersion}
-              onRestored={(restored) => {
-                setPage(restored);
-                setForm(formFromPage(restored));
+              loader={() => listPageVersions(page.pageId)}
+              restore={(n) => restorePageVersion(page.pageId, n)}
+              reloadKey={page.currentVersion}
+              onRestored={async () => {
+                const refreshed = await getPage(page.pageId);
+                setPage(refreshed);
+                setForm(formFromPage(refreshed));
               }}
             />
           )}
@@ -639,7 +643,7 @@ export function PageEditorPage() {
         }
         confirmLabel="Delete"
         destructive
-        loading={deleting}
+        busy={deleting}
         onConfirm={handleDelete}
         onCancel={() => !deleting && setConfirmDelete(false)}
       />

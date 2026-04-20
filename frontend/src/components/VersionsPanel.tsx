@@ -1,54 +1,49 @@
 import { useEffect, useState } from 'react';
-import { History, RotateCcw, AlertCircle } from 'lucide-react';
-import { listPageVersions, restorePageVersion } from '../services/pages';
-import type { LinkPage, VersionMeta } from '../types';
+import { History, RotateCcw } from 'lucide-react';
+import type { VersionMeta } from '../types';
 
 interface Props {
-  pageId: string;
-  currentVersion: number;
-  onRestored: (page: LinkPage) => void;
+  loader: () => Promise<VersionMeta[]>;
+  restore: (version: number) => Promise<unknown>;
+  onRestored?: () => void;
+  reloadKey?: number;
 }
 
-function formatTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
-
-export function VersionsPanel({ pageId, currentVersion, onRestored }: Props) {
+export function VersionsPanel({ loader, restore, onRestored, reloadKey }: Props) {
   const [versions, setVersions] = useState<VersionMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [restoringVersion, setRestoringVersion] = useState<number | null>(null);
 
-  const load = () => {
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError('');
-    listPageVersions(pageId)
-      .then((items) => setVersions(items))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load versions'))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    load();
+    loader()
+      .then(items => {
+        if (cancelled) return;
+        const sorted = [...items].sort((a, b) => b.version - a.version);
+        setVersions(sorted);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load versions');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageId, currentVersion]);
+  }, [reloadKey]);
 
   const handleRestore = async (version: number) => {
     setRestoringVersion(version);
     setError('');
     try {
-      const restored = await restorePageVersion(pageId, version);
-      onRestored(restored);
+      await restore(version);
+      onRestored?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Restore failed');
     } finally {
@@ -57,60 +52,51 @@ export function VersionsPanel({ pageId, currentVersion, onRestored }: Props) {
   };
 
   return (
-    <section className="bg-surface border border-border rounded-xl p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <History className="w-4 h-4 text-accent" />
-        <h2 className="font-semibold text-foreground">Versions</h2>
-      </div>
-
-      {error && (
-        <div className="bg-destructive/10 border border-destructive/40 rounded-lg px-3 py-2 text-sm text-destructive flex items-center gap-2 mb-3">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+    <section className="bg-surface border border-border rounded-xl p-4 space-y-3">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <History className="w-4 h-4 text-text-muted" />
+        Versions
+      </h3>
 
       {loading ? (
-        <p className="text-sm text-text-muted">Loading versions…</p>
+        <div className="space-y-2">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-10 bg-muted rounded-lg animate-pulse" />
+          ))}
+        </div>
+      ) : error ? (
+        <p className="text-sm text-destructive">{error}</p>
       ) : versions.length === 0 ? (
         <p className="text-sm text-text-muted">No previous versions yet.</p>
       ) : (
         <ul className="space-y-2">
-          {versions.map((v) => {
-            const isCurrent = v.version === currentVersion;
-            return (
-              <li
-                key={v.version}
-                className="flex items-center gap-3 bg-muted border border-border rounded-lg px-3 py-2"
+          {versions.map(v => (
+            <li
+              key={v.version}
+              className="flex items-center justify-between gap-2 bg-muted border border-border rounded-lg px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="text-sm text-foreground">v{v.version}</p>
+                <p className="text-xs text-text-muted truncate" title={v.note ?? ''}>
+                  {new Date(v.versionedAt).toLocaleString()}
+                  {v.note ? ` — ${v.note}` : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => handleRestore(v.version)}
+                disabled={restoringVersion !== null}
+                className="inline-flex items-center gap-1 text-xs text-foreground hover:text-accent transition-colors duration-150 disabled:opacity-50 cursor-pointer"
+                aria-label={`Restore version ${v.version}`}
               >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground">
-                    Version {v.version}
-                    {isCurrent && (
-                      <span className="ml-2 text-xs text-accent">current</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-text-muted">
-                    {formatTime(v.versionedAt)}
-                    {v.note ? ` · ${v.note}` : ''}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleRestore(v.version)}
-                  disabled={isCurrent || restoringVersion !== null}
-                  className="flex items-center gap-1.5 text-xs text-text-muted hover:text-foreground transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  {restoringVersion === v.version ? (
-                    <span className="w-3 h-3 border-2 border-text-muted border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  )}
-                  Restore
-                </button>
-              </li>
-            );
-          })}
+                {restoringVersion === v.version ? (
+                  <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <RotateCcw className="w-3 h-3" />
+                )}
+                Restore
+              </button>
+            </li>
+          ))}
         </ul>
       )}
     </section>
