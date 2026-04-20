@@ -536,7 +536,34 @@ paths:
       summary: Fetch a published Links Page's public payload for SPA rendering
       tags: [Public]
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PublicPage' } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicPage' }
+              example:
+                slug: jane-doe
+                displayName: Jane Doe
+                bio: Building things at the edges of software and design.
+                avatarUrl: https://example-bucket.s3.amazonaws.com/avatars/abc123/page_xyz/v3.png?X-Amz-Signature=...
+                theme: dark
+                accentColor: '#22C55E'
+                links:
+                  - linkKey: lk_01HZX1
+                    kind: x
+                    label: '@janedoe'
+                    icon: null
+                    clickHref: /l/amFuZS1kb2U6bGtfMDFIWlgx
+                  - linkKey: lk_01HZX2
+                    kind: github
+                    label: janedoe
+                    icon: null
+                    clickHref: /l/amFuZS1kb2U6bGtfMDFIWlgy
+                  - linkKey: lk_01HZX3
+                    kind: custom
+                    label: Newsletter
+                    icon: mail
+                    clickHref: /l/amFuZS1kb2U6bGtfMDFIWlgz
         '404': { description: Page not found or not published }
 
 components:

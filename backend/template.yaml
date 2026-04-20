@@ -1027,12 +1027,12 @@ Resources:
         External:
           - "@aws-sdk/*"
 
-  PublicStubFunction:
+  PublicPageGetFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: functions/
-      Handler: _stub.handler
-      Description: Foundation stub — returns 501 for public routes not yet implemented
+      Handler: public-page-get.handler
+      Description: Returns a published Links Page's public payload for the SPA renderer
       Events:
         PublicPageGet:
           Type: Api
@@ -1042,6 +1042,14 @@ Resources:
             Method: GET
       Policies:
         - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/avatars/*"
             - Effect: Allow
               Action:
                 - logs:CreateLogGroup
@@ -1061,7 +1069,7 @@ Resources:
         Minify: false
         Target: es2020
         EntryPoints:
-          - _stub.js
+          - public-page-get.js
         External:
           - "@aws-sdk/*"
 
