@@ -31,6 +31,8 @@ Globals:
       Variables:
         STORAGE_BUCKET_NAME: !Ref StorageBucket
         HISTORY_TABLE_NAME: !Ref HistoryTable
+        APP_TABLE_NAME: !Ref AppTable
+        EVENTS_TABLE_NAME: !Ref EventsTable
 
 Resources:
   # ── Auth ──────────────────────────────────────────────────────────────────
@@ -63,13 +65,22 @@ Resources:
       Cors:
         AllowOrigin: "'*'"
         AllowHeaders: "'Content-Type,Authorization'"
-        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowMethods: "'GET,POST,PATCH,DELETE,OPTIONS'"
       Auth:
         DefaultAuthorizer: CognitoAuth
         AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
           CognitoAuth:
             UserPoolArn: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}"
+
+  PublicApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: v1
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type'"
+        AllowMethods: "'GET,OPTIONS'"
 
   # ── Storage ───────────────────────────────────────────────────────────────
 
@@ -97,6 +108,39 @@ Resources:
           KeyType: HASH
         - AttributeName: createdAt
           KeyType: RANGE
+
+  AppTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+
+  EventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
 
   # ── Lambda functions ──────────────────────────────────────────────────────
 
@@ -191,6 +235,143 @@ Resources:
         External:
           - "@aws-sdk/*"
 
+  # ── Scaffolded stub functions (foundation PR) ─────────────────────────────
+  # Each feature PR replaces its route(s) by (a) creating a new Function with
+  # the real handler and (b) removing the Event below. The stubs return 501.
+
+  AuthStubFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: _stub.handler
+      Description: Foundation stub — returns 501 for authenticated routes not yet implemented
+      Events:
+        QrsList:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: /qrs, Method: GET }
+        QrsCreate:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: /qrs, Method: POST }
+        QrsGet:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}', Method: GET }
+        QrsUpdate:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}', Method: PATCH }
+        QrsDelete:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}', Method: DELETE }
+        QrsVerList:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}/versions', Method: GET }
+        QrsVerRestore:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/qrs/{qrId}/versions/{n}/restore', Method: POST }
+        PagesList:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: /pages, Method: GET }
+        PagesCreate:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: /pages, Method: POST }
+        PagesGet:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}', Method: GET }
+        PagesUpdate:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}', Method: PATCH }
+        PagesDelete:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}', Method: DELETE }
+        PagesPublish:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}/publish', Method: POST }
+        PagesVerList:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}/versions', Method: GET }
+        PagesVerRest:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/pages/{pageId}/versions/{n}/restore', Method: POST }
+        AnalyticsQr:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: '/analytics/qrs/{qrId}', Method: GET }
+        AnalyticsSum:
+          Type: Api
+          Properties: { RestApiId: !Ref QrRestApi, Path: /analytics/summary, Method: GET }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - _stub.js
+        External:
+          - "@aws-sdk/*"
+
+  PublicStubFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: _stub.handler
+      Description: Foundation stub — returns 501 for public routes not yet implemented
+      Events:
+        ScanRedirect:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: '/r/{qrId}'
+            Method: GET
+        LinkRedirect:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: '/l/{clickId}'
+            Method: GET
+        PublicPageGet:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: '/public/pages/{slug}'
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - _stub.js
+        External:
+          - "@aws-sdk/*"
+
   # ── Frontend hosting ──────────────────────────────────────────────────────
 
   FrontendBucket:
@@ -239,11 +420,36 @@ Resources:
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
             OriginAccessControlId: !GetAtt FrontendOAC.Id
             S3OriginConfig: {}
+          - Id: PublicApiOrigin
+            DomainName: !Sub "${PublicApi}.execute-api.${AWS::Region}.amazonaws.com"
+            OriginPath: /v1
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
           AllowedMethods: [GET, HEAD]
+        CacheBehaviors:
+          - PathPattern: /r/*
+            TargetOriginId: PublicApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
+            OriginRequestPolicyId: 33f36d7e-f396-46d9-90e0-52428a34d9dc  # AllViewerAndCloudFrontHeaders-2022-06
+          - PathPattern: /l/*
+            TargetOriginId: PublicApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: 33f36d7e-f396-46d9-90e0-52428a34d9dc
+          - PathPattern: /public/*
+            TargetOriginId: PublicApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: 33f36d7e-f396-46d9-90e0-52428a34d9dc
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -254,8 +460,20 @@ Resources:
 
 Outputs:
   ApiUrl:
-    Description: API base URL
+    Description: Authenticated API base URL
     Value: !Sub "https://${QrRestApi}.execute-api.${AWS::Region}.amazonaws.com/v1"
+
+  PublicApiUrl:
+    Description: Public (unauthenticated) API base URL — fronted by CloudFront
+    Value: !Sub "https://${PublicApi}.execute-api.${AWS::Region}.amazonaws.com/v1"
+
+  AppTableName:
+    Description: DynamoDB table for entities (QRs, pages, versions, slugs)
+    Value: !Ref AppTable
+
+  EventsTableName:
+    Description: DynamoDB table for scan and click events
+    Value: !Ref EventsTable
 
   CognitoUserPoolId:
     Description: Cognito User Pool ID
