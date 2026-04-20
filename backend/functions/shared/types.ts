@@ -103,6 +103,7 @@ export interface DashboardSummary {
   recentQrs: Array<Pick<QrCode, 'qrId' | 'name' | 'type' | 'updatedAt'>>;
   recentPages: Array<Pick<LinkPage, 'pageId' | 'slug' | 'displayName' | 'status' | 'updatedAt'>>;
   scansByDay: AnalyticsBucket[];
+  byCountry: Array<{ country: string; count: number }>;
 }
 
 export interface PublicPage {

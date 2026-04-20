@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  Globe2,
   Link2,
   Loader2,
   MousePointerClick,
@@ -13,6 +14,7 @@ import {
 import { getDashboardSummary } from '../services/analytics';
 import type { AnalyticsBucket, DashboardSummary } from '../types';
 import { TimeSeriesChart } from '../components/analytics/TimeSeriesChart';
+import { CountryBreakdown } from '../components/analytics/CountryBreakdown';
 
 type Range = 7 | 30 | 90;
 
@@ -187,13 +189,36 @@ export function AnalyticsPage() {
         />
       </section>
 
-      {/* Scan trend */}
-      <section className="bg-surface border border-border rounded-xl p-4 sm:p-6 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-foreground">Scans over time</h2>
-          <span className="text-xs text-text-muted">{rangeLabel}</span>
+      {/* Scan trend + country breakdown */}
+      <section
+        className={`grid grid-cols-1 gap-4 ${
+          data.byCountry.length > 0 ? 'lg:grid-cols-3' : ''
+        }`}
+      >
+        <div
+          className={`bg-surface border border-border rounded-xl p-4 sm:p-6 space-y-3 ${
+            data.byCountry.length > 0 ? 'lg:col-span-2' : ''
+          }`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-foreground">Scans over time</h2>
+            <span className="text-xs text-text-muted">{rangeLabel}</span>
+          </div>
+          <TimeSeriesChart data={filteredByDay} label="Scans" />
         </div>
-        <TimeSeriesChart data={filteredByDay} label="Scans" />
+
+        {data.byCountry.length > 0 && (
+          <div className="bg-surface border border-border rounded-xl p-4 sm:p-6 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Globe2 className="w-4 h-4 text-text-muted" />
+                Scans by country
+              </h2>
+              <span className="text-xs text-text-muted">Last 30 days</span>
+            </div>
+            <CountryBreakdown data={data.byCountry} />
+          </div>
+        )}
       </section>
 
       {/* Recent activity */}

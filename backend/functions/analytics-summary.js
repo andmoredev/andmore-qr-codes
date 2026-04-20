@@ -6,6 +6,7 @@
  *   - scansLast30Days / clicksLast30Days
  *   - recentQrs / recentPages (top 5 by updatedAt desc)
  *   - scansByDay bucket across the last 30 days
+ *   - byCountry: top-10 countries across all scan events in the window
  *
  * Performance note (MVP): click/scan counts are derived by fan-out Query per QR
  * over the EventsTable (O(Nqr × events)). Acceptable while Nqr is small; when
@@ -97,17 +98,25 @@ exports.handler = async (event) => {
     let scansLast30Days = 0;
     let clicksLast30Days = 0;
     const scansByDay = new Map();
+    const scansByCountry = new Map();
     for (const { scans, clicks } of qrEventResults) {
       scansLast30Days += scans.length;
       clicksLast30Days += clicks.length;
       for (const evt of scans) {
         const bucket = typeof evt.ts === 'string' ? evt.ts.slice(0, 10) : null;
         if (bucket) scansByDay.set(bucket, (scansByDay.get(bucket) ?? 0) + 1);
+        const country = typeof evt.country === 'string' ? evt.country.trim() : '';
+        if (country) scansByCountry.set(country, (scansByCountry.get(country) ?? 0) + 1);
       }
     }
 
     const days = enumerateDays(fromDate, toDate);
     const scansByDayArr = days.map((bucket) => ({ bucket, count: scansByDay.get(bucket) ?? 0 }));
+
+    const byCountry = [...scansByCountry.entries()]
+      .map(([country, count]) => ({ country, count }))
+      .sort((a, b) => b.count - a.count || a.country.localeCompare(b.country))
+      .slice(0, 10);
 
     const byUpdatedDesc = (a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? ''));
 
@@ -135,6 +144,7 @@ exports.handler = async (event) => {
       recentQrs,
       recentPages,
       scansByDay: scansByDayArr,
+      byCountry,
     };
 
     return respond(200, summary);

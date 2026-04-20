@@ -10,6 +10,7 @@ import { QrEditorPage } from './pages/QrEditorPage';
 import { QrDetailPage } from './pages/QrDetailPage';
 import { PageListPage } from './pages/PageListPage';
 import { PageEditorPage } from './pages/PageEditorPage';
+import { PagePreviewPage } from './pages/PagePreviewPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { PublicPage } from './pages/PublicPage';
 
@@ -35,6 +36,14 @@ export default function App() {
           <Route path="/pages" element={authed(<PageListPage />)} />
           <Route path="/pages/new" element={authed(<PageEditorPage />)} />
           <Route path="/pages/:pageId" element={authed(<PageEditorPage />)} />
+          <Route
+            path="/pages/:pageId/preview"
+            element={
+              <ProtectedRoute>
+                <PagePreviewPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/analytics" element={authed(<AnalyticsPage />)} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
