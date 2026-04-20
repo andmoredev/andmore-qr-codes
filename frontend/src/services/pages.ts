@@ -1,6 +1,6 @@
 import { config } from '../config';
 import { authService } from './auth';
-import type { LinkPage, CreatePageRequest, UpdatePageRequest, VersionMeta } from '../types';
+import type { LinkPage, CreatePageRequest, UpdatePageRequest, VersionMeta, PublicPage } from '../types';
 
 async function authHeaders(): Promise<Record<string, string>> {
   const token = await authService.getIdToken();
@@ -62,4 +62,14 @@ export async function listPageVersions(pageId: string): Promise<VersionMeta[]> {
 
 export async function restorePageVersion(pageId: string, n: number): Promise<LinkPage> {
   return request<LinkPage>(`/pages/${pageId}/versions/${n}/restore`, { method: 'POST' });
+}
+
+/**
+ * Fetch the owner-scoped draft preview of a Links Page. Returns the same
+ * `PublicPage` shape as `GET /public/pages/{slug}` so the same renderer
+ * (`<PublicPageView>`) can display it verbatim. 404s for non-owners and
+ * unknown pages. Draft pages are included (unlike the public endpoint).
+ */
+export async function getPagePreview(pageId: string): Promise<PublicPage> {
+  return request<PublicPage>(`/pages/${pageId}/preview`);
 }
