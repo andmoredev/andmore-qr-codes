@@ -7,6 +7,15 @@ async function authHeaders(): Promise<Record<string, string>> {
   return { Authorization: token ?? '', 'Content-Type': 'application/json' };
 }
 
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = 'ApiError';
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${config.apiUrl}${path}`, {
     ...init,
@@ -14,7 +23,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.error ?? `Request failed: ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed: ${res.status}`);
   return data as T;
 }
 

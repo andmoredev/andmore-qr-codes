@@ -19,6 +19,16 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /andmoredev-auth/CognitoUserPoolUrl
 
+  PublicBaseUrl:
+    Type: String
+    Default: ""
+    Description: >
+      Public-facing origin used by the scan-redirect Lambda to build /p/{slug}
+      URLs (e.g. https://d1234.cloudfront.net). Leave blank on the initial
+      deploy; after the stack is up, read CloudFrontUrl from the Outputs and
+      redeploy with --parameter-overrides PublicBaseUrl=<that value>. Avoids
+      a FrontendDistribution <-> PublicApi <-> Function circular dependency.
+
 Globals:
   Function:
     Timeout: 30
@@ -585,21 +595,28 @@ Resources:
   # Each feature PR replaces its route(s) by (a) creating a new Function with
   # the real handler and (b) removing the Event below. The stubs return 501.
 
-  AuthStubFunction:
+  AnalyticsQrFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: functions/
-      Handler: _stub.handler
-      Description: Foundation stub — returns 501 for authenticated routes not yet implemented
+      Handler: analytics-qr.handler
+      Description: Returns scan/click analytics for a single QR owned by the caller
       Events:
-        AnalyticsQr:
+        GetQrAnalytics:
           Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: '/analytics/qrs/{qrId}', Method: GET }
-        AnalyticsSum:
-          Type: Api
-          Properties: { RestApiId: !Ref QrRestApi, Path: /analytics/summary, Method: GET }
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: '/analytics/qrs/{qrId}'
+            Method: GET
       Policies:
         - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt AppTable.Arn
+                - !GetAtt EventsTable.Arn
             - Effect: Allow
               Action:
                 - logs:CreateLogGroup
@@ -619,7 +636,52 @@ Resources:
         Minify: false
         Target: es2020
         EntryPoints:
-          - _stub.js
+          - analytics-qr.js
+        External:
+          - "@aws-sdk/*"
+
+  AnalyticsSummaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: analytics-summary.handler
+      Description: Returns an aggregated dashboard summary for the caller
+      Events:
+        GetAnalyticsSummary:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QrRestApi
+            Path: /analytics/summary
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt AppTable.Arn
+                - !GetAtt EventsTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+              Resource: "*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        EntryPoints:
+          - analytics-summary.js
         External:
           - "@aws-sdk/*"
 
@@ -975,12 +1037,12 @@ Resources:
         External:
           - "@aws-sdk/*"
 
-  PublicStubFunction:
+  PublicPageGetFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: functions/
-      Handler: _stub.handler
-      Description: Foundation stub — returns 501 for public routes not yet implemented
+      Handler: public-page-get.handler
+      Description: Returns a published Links Page's public payload for the SPA renderer
       Events:
         PublicPageGet:
           Type: Api
@@ -990,6 +1052,14 @@ Resources:
             Method: GET
       Policies:
         - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt AppTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "${StorageBucket.Arn}/avatars/*"
             - Effect: Allow
               Action:
                 - logs:CreateLogGroup
@@ -1009,7 +1079,7 @@ Resources:
         Minify: false
         Target: es2020
         EntryPoints:
-          - _stub.js
+          - public-page-get.js
         External:
           - "@aws-sdk/*"
 
@@ -1019,6 +1089,9 @@ Resources:
       CodeUri: functions/
       Handler: redirect-qr.handler
       Description: Resolves a QR scan to its destination and records a scan event
+      Environment:
+        Variables:
+          PUBLIC_BASE_URL: !Ref PublicBaseUrl
       Events:
         ScanRedirect:
           Type: Api
@@ -1140,6 +1213,25 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
+  PublicApiOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties:
+      OriginRequestPolicyConfig:
+        Name: !Sub "andmore-qr-public-api-${EnvironmentHash}"
+        Comment: "Whitelists PublicApi headers; omits Host so API Gateway accepts the request."
+        HeadersConfig:
+          HeaderBehavior: whitelist
+          Headers:
+            - User-Agent
+            - Referer
+            - CloudFront-Viewer-Country
+            - X-Forwarded-For
+            - Accept-Language
+        CookiesConfig:
+          CookieBehavior: none
+        QueryStringsConfig:
+          QueryStringBehavior: all
+
   FrontendDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -1170,19 +1262,19 @@ Resources:
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
-            OriginRequestPolicyId: 33f36d7e-f396-46d9-90e0-52428a34d9dc  # AllViewerAndCloudFrontHeaders-2022-06
+            OriginRequestPolicyId: !Ref PublicApiOriginRequestPolicy
           - PathPattern: /l/*
             TargetOriginId: PublicApiOrigin
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: 33f36d7e-f396-46d9-90e0-52428a34d9dc
+            OriginRequestPolicyId: !Ref PublicApiOriginRequestPolicy
           - PathPattern: /public/*
             TargetOriginId: PublicApiOrigin
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: 33f36d7e-f396-46d9-90e0-52428a34d9dc
+            OriginRequestPolicyId: !Ref PublicApiOriginRequestPolicy
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
