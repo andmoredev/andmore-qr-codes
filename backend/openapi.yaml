@@ -46,8 +46,32 @@ paths:
       operationId: ListQrs
       summary: List the authenticated user's QR codes
       tags: [QR Codes]
+      parameters:
+        - name: includeDeleted
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+          description: When true, soft-deleted QRs are included.
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/QrCodeList' } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QrCodeList' }
+              example:
+                items:
+                  - qrId: abc123def4
+                    userId: 9f8e7d6c-5b4a-4321-9876-543210abcdef
+                    name: Conference booth
+                    type: direct
+                    destinationUrl: https://example.com/launch
+                    pageId: null
+                    qrCodeUrl: https://storage.example.com/qrcodes/.../v000002.png?X-Amz-Signature=...
+                    logoUrl: null
+                    enabled: true
+                    currentVersion: 2
+                    createdAt: 2026-04-20T12:34:56.000Z
+                    updatedAt: 2026-04-20T13:00:00.000Z
     post:
       operationId: CreateQr
       summary: Create a QR code (direct-URL or page-backed)
@@ -57,8 +81,29 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/CreateQrRequest' }
+            example:
+              name: Conference booth
+              type: direct
+              destinationUrl: https://example.com/launch
       responses:
-        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/QrCode' } } } }
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QrCode' }
+              example:
+                qrId: abc123def4
+                userId: 9f8e7d6c-5b4a-4321-9876-543210abcdef
+                name: Conference booth
+                type: direct
+                destinationUrl: https://example.com/launch
+                pageId: null
+                qrCodeUrl: https://storage.example.com/qrcodes/.../v000001.png?X-Amz-Signature=...
+                logoUrl: null
+                enabled: true
+                currentVersion: 1
+                createdAt: 2026-04-20T12:34:56.000Z
+                updatedAt: 2026-04-20T12:34:56.000Z
         '400': { $ref: '#/components/responses/ClientError' }
 
   /qrs/{qrId}:
@@ -67,7 +112,24 @@ paths:
       operationId: GetQr
       tags: [QR Codes]
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/QrCode' } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QrCode' }
+              example:
+                qrId: abc123def4
+                userId: 9f8e7d6c-5b4a-4321-9876-543210abcdef
+                name: Conference booth
+                type: direct
+                destinationUrl: https://example.com/launch
+                pageId: null
+                qrCodeUrl: https://storage.example.com/qrcodes/.../v000001.png?X-Amz-Signature=...
+                logoUrl: null
+                enabled: true
+                currentVersion: 1
+                createdAt: 2026-04-20T12:34:56.000Z
+                updatedAt: 2026-04-20T12:34:56.000Z
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       operationId: UpdateQr
@@ -77,11 +139,33 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/UpdateQrRequest' }
+            example:
+              name: Conference booth (v2)
+              destinationUrl: https://example.com/launch-2026
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/QrCode' } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QrCode' }
+              example:
+                qrId: abc123def4
+                userId: 9f8e7d6c-5b4a-4321-9876-543210abcdef
+                name: Conference booth (v2)
+                type: direct
+                destinationUrl: https://example.com/launch-2026
+                pageId: null
+                qrCodeUrl: https://storage.example.com/qrcodes/.../v000002.png?X-Amz-Signature=...
+                logoUrl: null
+                enabled: true
+                currentVersion: 2
+                createdAt: 2026-04-20T12:34:56.000Z
+                updatedAt: 2026-04-20T13:00:00.000Z
+        '400': { $ref: '#/components/responses/ClientError' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       operationId: DeleteQr
+      summary: Soft delete — flips enabled=false and records deletedAt.
       tags: [QR Codes]
       responses:
         '204': { description: Deleted }
@@ -93,7 +177,18 @@ paths:
       operationId: ListQrVersions
       tags: [QR Codes]
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/VersionList' } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VersionList' }
+              example:
+                items:
+                  - version: 2
+                    versionedAt: 2026-04-20T13:00:00.000Z
+                  - version: 1
+                    versionedAt: 2026-04-20T12:34:56.000Z
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /qrs/{qrId}/versions/{n}/restore:
     parameters:
@@ -101,9 +196,29 @@ paths:
       - { name: n, in: path, required: true, schema: { type: integer } }
     post:
       operationId: RestoreQrVersion
+      summary: Restore to version n — creates a new version snapshotting current state first.
       tags: [QR Codes]
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/QrCode' } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QrCode' }
+              example:
+                qrId: abc123def4
+                userId: 9f8e7d6c-5b4a-4321-9876-543210abcdef
+                name: Conference booth
+                type: direct
+                destinationUrl: https://example.com/launch
+                pageId: null
+                qrCodeUrl: https://storage.example.com/qrcodes/.../v000003.png?X-Amz-Signature=...
+                logoUrl: null
+                enabled: true
+                currentVersion: 3
+                restoredFrom: 1
+                createdAt: 2026-04-20T12:34:56.000Z
+                updatedAt: 2026-04-20T14:00:00.000Z
+        '400': { $ref: '#/components/responses/ClientError' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   # ── Links Pages ────────────────────────────────────────────────────────────
@@ -305,18 +420,50 @@ paths:
       summary: Resolve a QR scan to its destination, recording a scan event
       tags: [Public]
       responses:
-        '302': { description: Redirect to destination }
-        '404': { description: QR not found or disabled }
+        '302':
+          description: Redirect to destination
+          headers:
+            Location:
+              description: |
+                Target URL for the scan. For `type=direct` QRs this is the configured
+                `destinationUrl`. For `type=page` QRs with a published page this is
+                `https://{host}/p/{slug}?src={qrId}`; when the page is unpublished the
+                location is `https://{host}/p/unavailable`.
+              schema: { type: string, format: uri }
+              example: https://example.com/
+        '404':
+          description: QR not found or disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { error: { type: string } }
+              example: { error: 'Not found' }
 
   /l/{clickId}:
-    parameters: [{ name: clickId, in: path, required: true, schema: { type: string } }]
+    parameters:
+      - { name: clickId, in: path, required: true, schema: { type: string }, description: 'base64url-encoded `{slug}:{linkKey}`' }
+      - { name: src, in: query, required: false, schema: { type: string }, description: 'Originating QR id; when present, a click event is recorded.' }
     get:
       operationId: ClickRedirect
       summary: Resolve a link click, recording a click event
       tags: [Public]
       responses:
-        '302': { description: Redirect to destination }
-        '404': { description: Link not found }
+        '302':
+          description: Redirect to the link's destination URL
+          headers:
+            Location:
+              description: The configured `url` of the matched link on the page.
+              schema: { type: string, format: uri }
+              example: https://x.com/example
+        '404':
+          description: Malformed clickId, page not found, or link not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { error: { type: string } }
+              example: { error: 'Not found' }
 
   /public/pages/{slug}:
     parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
