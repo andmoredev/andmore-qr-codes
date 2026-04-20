@@ -6,6 +6,8 @@ const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb'
 const s3 = new S3Client({});
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
+const PRESIGN_TTL_SECONDS = 3600;
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type,Authorization',
@@ -33,9 +35,9 @@ exports.handler = async (event) => {
     }));
 
     const items = await Promise.all(result.Items.map(async (item) => {
-      const qrCodeUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: item.qrCodeKey }), { expiresIn: 3600 });
+      const qrCodeUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: item.qrCodeKey }), { expiresIn: PRESIGN_TTL_SECONDS });
       const imageUrl = item.imageKey
-        ? await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: item.imageKey }), { expiresIn: 3600 })
+        ? await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: item.imageKey }), { expiresIn: PRESIGN_TTL_SECONDS })
         : null;
 
       return { id: item.id, url: item.url, createdAt: item.createdAt, qrCodeUrl, imageUrl };

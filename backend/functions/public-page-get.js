@@ -20,6 +20,7 @@ const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { respond } = require('./shared/cors');
 const { getPageBySlug } = require('./shared/repo/appTable');
+const { AVATAR_URL_TTL_SECONDS } = require('./shared/pageSerializer');
 
 const s3 = new S3Client({});
 
@@ -45,7 +46,7 @@ exports.handler = async (event) => {
       ? await getSignedUrl(
           s3,
           new GetObjectCommand({ Bucket: bucket, Key: page.avatarKey }),
-          { expiresIn: 3600 }
+          { expiresIn: AVATAR_URL_TTL_SECONDS }
         )
       : null;
 
