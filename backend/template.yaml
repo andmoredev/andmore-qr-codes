@@ -29,6 +29,15 @@ Parameters:
       redeploy with --parameter-overrides PublicBaseUrl=<that value>. Avoids
       a FrontendDistribution <-> PublicApi <-> Function circular dependency.
 
+  AllowedOrigin:
+    Type: String
+    Default: "*"
+    Description: >
+      Origin allowed to hit the authenticated API. Defaults to "*" so a fresh
+      deploy isn't blocked, but production deploys should set this to the
+      CloudFront or custom domain (e.g. https://d1234.cloudfront.net) via
+      --parameter-overrides AllowedOrigin=<value>.
+
 Globals:
   Function:
     Timeout: 30
@@ -43,6 +52,7 @@ Globals:
         HISTORY_TABLE_NAME: !Ref HistoryTable
         APP_TABLE_NAME: !Ref AppTable
         EVENTS_TABLE_NAME: !Ref EventsTable
+        ALLOWED_ORIGIN: !Ref AllowedOrigin
 
 Resources:
   # ── Auth ──────────────────────────────────────────────────────────────────
@@ -73,7 +83,7 @@ Resources:
     Properties:
       StageName: v1
       Cors:
-        AllowOrigin: "'*'"
+        AllowOrigin: !Sub "'${AllowedOrigin}'"
         AllowHeaders: "'Content-Type,Authorization'"
         AllowMethods: "'GET,POST,PATCH,DELETE,OPTIONS'"
       Auth:
@@ -1088,6 +1098,11 @@ Resources:
       CodeUri: functions/
       Handler: public-page-get.handler
       Description: Returns a published Links Page's public payload for the SPA renderer
+      Environment:
+        Variables:
+          # Public endpoint: always serve Access-Control-Allow-Origin: * since
+          # this URL is hit anonymously by the SPA renderer / embeds (no auth).
+          ALLOWED_ORIGIN: "*"
       Events:
         PublicPageGet:
           Type: Api
@@ -1134,6 +1149,11 @@ Resources:
       CodeUri: functions/
       Handler: redirect-qr.handler
       Description: Resolves a QR scan to its destination and records a scan event
+      Environment:
+        Variables:
+          # Public endpoint: always serve Access-Control-Allow-Origin: * since
+          # this URL is hit anonymously from any QR scan (no auth, no cookies).
+          ALLOWED_ORIGIN: "*"
       Events:
         ScanRedirect:
           Type: Api
@@ -1180,6 +1200,11 @@ Resources:
       CodeUri: functions/
       Handler: redirect-link.handler
       Description: Resolves a Links Page link click to its destination and records a click event
+      Environment:
+        Variables:
+          # Public endpoint: always serve Access-Control-Allow-Origin: * since
+          # this URL is hit anonymously from any link click (no auth, no cookies).
+          ALLOWED_ORIGIN: "*"
       Events:
         LinkRedirect:
           Type: Api
