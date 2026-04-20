@@ -105,8 +105,7 @@ export function PublicPageView({ page, srcQrId }: Props) {
               <li key={link.linkKey}>
                 <a
                   href={href}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
+                  rel="noopener nofollow"
                   className={`group flex items-center gap-3 w-full px-4 py-3.5 rounded-xl border transition-colors duration-150 ${
                     isDark
                       ? 'bg-[#1E293B]/60 border-[#334155] hover:bg-[#1E293B]'
