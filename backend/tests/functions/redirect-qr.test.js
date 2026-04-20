@@ -5,7 +5,9 @@
  *   - direct-type QR → 302 to destinationUrl
  *   - page-type + published → 302 to /p/{slug}?src=<qrId>
  *   - page-type + unpublished (draft) → 302 to /p/unavailable
- *   - missing or disabled QR → 404
+ *   - missing or disabled QR → 302 to /p/unavailable (never 4xx/5xx, because
+ *     CloudFront's distribution-level CustomErrorResponses rewrites any 4xx
+ *     from any origin to /index.html → SPA → /login).
  * Scan events fire via putScanEvent in the happy paths but must never break the
  * redirect if the events table is unreachable.
  */
@@ -29,7 +31,6 @@ beforeEach(() => {
   setEnv({
     APP_TABLE_NAME: 'AppTable',
     EVENTS_TABLE_NAME: 'EventsTable',
-    PUBLIC_BASE_URL: 'https://qr.example.com',
   });
   // Reset the module cache so env changes are picked up on each require().
   resetStubs();
@@ -97,7 +98,7 @@ test('redirect-qr page type + published 302s to /p/{slug}?src=<qrId>', async () 
 
   assert.equal(res.statusCode, 302);
   assertCors(res);
-  assert.equal(res.headers.Location, 'https://qr.example.com/p/me?src=qr-2');
+  assert.equal(res.headers.Location, '/p/me?src=qr-2');
 });
 
 test('redirect-qr page type + unpublished 302s to /p/unavailable', async () => {
@@ -131,10 +132,10 @@ test('redirect-qr page type + unpublished 302s to /p/unavailable', async () => {
 
   assert.equal(res.statusCode, 302);
   assertCors(res);
-  assert.equal(res.headers.Location, 'https://qr.example.com/p/unavailable');
+  assert.equal(res.headers.Location, '/p/unavailable');
 });
 
-test('redirect-qr returns 404 with CORS for unknown or disabled QR', async () => {
+test('redirect-qr 302s to /p/unavailable with CORS for unknown or disabled QR', async () => {
   ddbMock.on(GetCommand).resolves({ Item: { qrId: 'qr-4', enabled: false } });
 
   const { handler } = require('../../functions/redirect-qr');
@@ -143,6 +144,21 @@ test('redirect-qr returns 404 with CORS for unknown or disabled QR', async () =>
     pathParameters: { qrId: 'qr-4' },
   }));
 
-  assert.equal(res.statusCode, 404);
+  assert.equal(res.statusCode, 302);
   assertCors(res);
+  assert.equal(res.headers.Location, '/p/unavailable');
+});
+
+test('redirect-qr 302s to /p/unavailable when getQrLookup throws', async () => {
+  ddbMock.on(GetCommand).rejects(new Error('ddb offline'));
+
+  const { handler } = require('../../functions/redirect-qr');
+
+  const res = await handler(publicEvent({
+    pathParameters: { qrId: 'qr-err' },
+  }));
+
+  assert.equal(res.statusCode, 302);
+  assertCors(res);
+  assert.equal(res.headers.Location, '/p/unavailable');
 });

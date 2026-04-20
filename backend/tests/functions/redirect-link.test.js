@@ -4,7 +4,9 @@
  * Covers GET /l/{clickId}:
  *   - happy path: 302 to the link URL, with a click event persisted when
  *     ?src=<qrId> is supplied.
- *   - 404 on a malformed (non-decodeable) clickId.
+ *   - malformed (non-decodeable) clickId → 302 to /p/unavailable. Never 4xx,
+ *     because CloudFront's distribution-level CustomErrorResponses rewrite
+ *     any 4xx from any origin to /index.html → SPA → /login.
  */
 
 const { test, beforeEach, afterEach } = require('node:test');
@@ -23,7 +25,10 @@ const ddbMock = mockClient(DynamoDBDocumentClient);
 
 beforeEach(() => {
   ddbMock.reset();
-  setEnv({ APP_TABLE_NAME: 'AppTable', EVENTS_TABLE_NAME: 'EventsTable' });
+  setEnv({
+    APP_TABLE_NAME: 'AppTable',
+    EVENTS_TABLE_NAME: 'EventsTable',
+  });
   resetStubs();
 });
 
@@ -74,7 +79,7 @@ test('redirect-link happy path 302s to link URL and writes click event when src=
   assert.equal(item.linkKey, 'lk-abc');
 });
 
-test('redirect-link returns 404 for a malformed clickId', async () => {
+test('redirect-link 302s to /p/unavailable for a malformed clickId', async () => {
   const { handler } = require('../../functions/redirect-link');
 
   const res = await handler(publicEvent({
@@ -82,6 +87,7 @@ test('redirect-link returns 404 for a malformed clickId', async () => {
     pathParameters: { clickId: 'bWFsZm9ybWVk' /* base64url("malformed") */ },
   }));
 
-  assert.equal(res.statusCode, 404);
+  assert.equal(res.statusCode, 302);
   assertCors(res);
+  assert.equal(res.headers.Location, '/p/unavailable');
 });

@@ -1151,7 +1151,6 @@ Resources:
       Description: Resolves a QR scan to its destination and records a scan event
       Environment:
         Variables:
-          PUBLIC_BASE_URL: !Ref PublicBaseUrl
           # Public endpoint: always serve Access-Control-Allow-Origin: * since
           # this URL is hit anonymously from any QR scan (no auth, no cookies).
           ALLOWED_ORIGIN: "*"
