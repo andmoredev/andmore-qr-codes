@@ -1,5 +1,5 @@
 const { createHash } = require('crypto');
-const { respond, redirect } = require('./shared/cors');
+const { redirect } = require('./shared/cors');
 const { getPageBySlug } = require('./shared/repo/appTable');
 const { putClickEvent } = require('./shared/repo/eventsTable');
 
@@ -55,15 +55,30 @@ const decodeClickId = (clickId) => {
 };
 
 /**
+ * `/p/*` redirects are emitted as **relative** `Location:` values — the
+ * browser resolves them against the viewer's effective request URI (the
+ * CloudFront domain). Removes dependency on `PUBLIC_BASE_URL` and avoids the
+ * `event.headers.Host` footgun (CloudFront strips Host before API Gateway,
+ * so Host would point at the execute-api domain which has no `/p/*` route).
+ */
+const PAGE_UNAVAILABLE = '/p/unavailable';
+
+/**
  * GET /l/{clickId} — resolve a link click on a Links Page and 302 to the link URL.
  * Records a click event when ?src=<qrId> is present (QR-originated click).
+ *
+ * IMPORTANT: this handler must always 302 — never 4xx/5xx. CloudFront's
+ * distribution-level CustomErrorResponses rewrites every 4xx from any origin
+ * (including PublicApi) to `/index.html`, which loads the SPA and bounces
+ * through ProtectedRoute to `/login`. Returning a 302 to `/p/unavailable`
+ * keeps the viewer on the friendly "not available" page instead.
  */
 exports.handler = async (event) => {
   const clickId = event.pathParameters?.clickId;
-  if (!clickId) return respond(404, { error: 'Not found' });
+  if (!clickId) return redirect(PAGE_UNAVAILABLE);
 
   const decoded = decodeClickId(clickId);
-  if (!decoded) return respond(404, { error: 'Not found' });
+  if (!decoded) return redirect(PAGE_UNAVAILABLE);
 
   const { slug, linkKey } = decoded;
 
@@ -72,14 +87,14 @@ exports.handler = async (event) => {
     page = await getPageBySlug(slug);
   } catch (err) {
     console.error('getPageBySlug failed', { slug, err });
-    return respond(500, { error: 'Internal server error' });
+    return redirect(PAGE_UNAVAILABLE);
   }
   if (!page || !Array.isArray(page.links)) {
-    return respond(404, { error: 'Not found' });
+    return redirect(PAGE_UNAVAILABLE);
   }
 
   const link = page.links.find((l) => l && l.linkKey === linkKey);
-  if (!link || !link.url) return respond(404, { error: 'Not found' });
+  if (!link || !link.url) return redirect(PAGE_UNAVAILABLE);
 
   const src = event.queryStringParameters?.src;
   if (src) {
