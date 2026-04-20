@@ -1,5 +1,5 @@
 const { createHash } = require('crypto');
-const { respond, redirect } = require('./shared/cors');
+const { redirect } = require('./shared/cors');
 const { getQrLookup, getPageByUser } = require('./shared/repo/appTable');
 const { putScanEvent } = require('./shared/repo/eventsTable');
 
@@ -42,22 +42,54 @@ const getSourceIp = (event) => {
 };
 
 /**
+ * Build the `/p/unavailable` URL for this request. Always returns a string
+ * suitable for a `Location:` header.
+ *
+ * Preference order:
+ *  1. `PUBLIC_BASE_URL` env var (set by CFN to the CloudFront domain).
+ *  2. `https://${Host}` from the viewer request — note CloudFront's
+ *     PublicApiOriginRequestPolicy strips Host before it reaches the Lambda,
+ *     so this only helps when the function is invoked outside CloudFront
+ *     (e.g. directly via API Gateway during a test).
+ *  3. Last-resort: the **relative** path `/p/unavailable`. Browsers resolve
+ *     relative `Location` headers against the request URL, which is the
+ *     CloudFront domain the viewer actually hit — exactly the destination we
+ *     want. This guarantees we never return a non-302 from this handler.
+ */
+const buildFallbackUrl = (event) => {
+  const publicBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+  if (publicBase) return `${publicBase}/p/unavailable`;
+  const hostHeader = getHeader(event?.headers, 'Host');
+  if (hostHeader) return `https://${hostHeader}/p/unavailable`;
+  // Relative fallback — resolved against the viewer's CloudFront URL.
+  return '/p/unavailable';
+};
+
+/**
  * GET /r/{qrId} — resolve a QR scan, record a scan event, 302 to destination.
+ *
+ * IMPORTANT: this handler must always 302 — never 4xx/5xx. CloudFront's
+ * distribution-level CustomErrorResponses rewrites every 4xx from any origin
+ * (including PublicApi) to `/index.html`, which loads the SPA and bounces
+ * through ProtectedRoute to `/login`. Returning a 302 to `/p/unavailable`
+ * keeps the viewer on the friendly "not available" page instead.
  */
 exports.handler = async (event) => {
+  const fallbackLocation = buildFallbackUrl(event);
+
   const qrId = event.pathParameters?.qrId;
-  if (!qrId) return respond(404, { error: 'Not found' });
+  if (!qrId) return redirect(fallbackLocation);
 
   let qrLookup;
   try {
     qrLookup = await getQrLookup(qrId);
   } catch (err) {
     console.error('getQrLookup failed', { qrId, err });
-    return respond(500, { error: 'Internal server error' });
+    return redirect(fallbackLocation);
   }
 
   if (!qrLookup || qrLookup.enabled === false) {
-    return respond(404, { error: 'Not found' });
+    return redirect(fallbackLocation);
   }
 
   // PUBLIC_BASE_URL comes from the CFN PublicBaseUrl parameter. Host header is
@@ -71,30 +103,30 @@ exports.handler = async (event) => {
   let destination;
 
   if (qrLookup.type === 'direct') {
-    if (!qrLookup.destinationUrl) return respond(404, { error: 'Not found' });
+    if (!qrLookup.destinationUrl) return redirect(fallbackLocation);
     destination = qrLookup.destinationUrl;
   } else if (qrLookup.type === 'page') {
     const { userId, pageId } = qrLookup;
-    if (!userId || !pageId) return respond(404, { error: 'Not found' });
+    if (!userId || !pageId) return redirect(fallbackLocation);
     if (!baseUrl) {
       console.error('PUBLIC_BASE_URL is not configured and Host header is missing');
-      return respond(500, { error: 'Server misconfiguration' });
+      return redirect(fallbackLocation);
     }
     let page;
     try {
       page = await getPageByUser(userId, pageId);
     } catch (err) {
       console.error('getPageByUser failed', { userId, pageId, err });
-      return respond(500, { error: 'Internal server error' });
+      return redirect(fallbackLocation);
     }
-    if (!page) return respond(404, { error: 'Not found' });
+    if (!page) return redirect(fallbackLocation);
     if (page.status !== 'published') {
       destination = `${baseUrl}/p/unavailable`;
     } else {
       destination = `${baseUrl}/p/${page.slug}?src=${encodeURIComponent(qrId)}`;
     }
   } else {
-    return respond(404, { error: 'Not found' });
+    return redirect(fallbackLocation);
   }
 
   const ua = getHeader(event.headers, 'User-Agent');
