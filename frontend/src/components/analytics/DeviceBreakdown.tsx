@@ -78,7 +78,7 @@ export function DeviceBreakdown({ data, height = 220 }: Props) {
                 />
                 {row.name}
               </span>
-              <span className="text-text-muted tabular-nums">
+              <span className="text-text-muted tabular-nums whitespace-nowrap">
                 {row.value.toLocaleString()} <span className="text-xs">({pct}%)</span>
               </span>
             </li>
