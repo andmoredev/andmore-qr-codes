@@ -412,10 +412,10 @@ export function PageEditorPage() {
             type="button"
             onClick={() => {
               if (mode !== 'edit' || !pageId) return;
-              window.open(`/pages/${pageId}/preview`, '_blank', 'noopener,noreferrer');
+              navigate(`/pages/${pageId}/preview`);
             }}
             disabled={mode === 'create' || !pageId}
-            title={mode === 'create' ? 'Save the page first to preview it' : 'Preview in a new tab'}
+            title={mode === 'create' ? 'Save the page first to preview it' : 'Preview'}
             className="flex items-center gap-1.5 bg-muted hover:bg-surface border border-border text-foreground font-medium rounded-lg px-3 py-2 text-sm transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <Eye className="w-4 h-4" />
