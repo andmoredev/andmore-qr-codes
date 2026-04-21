@@ -20,9 +20,45 @@ const kindOptions: Array<{ value: LinkKind; label: string }> = [
   { value: 'custom', label: 'Custom' },
 ];
 
+interface HandleConfig {
+  base: string;
+  showAt: boolean;
+  placeholder: string;
+  fieldLabel: string;
+}
+
+const HANDLE_CONFIG: Record<string, HandleConfig> = {
+  x:        { base: 'https://x.com/',          showAt: true,  placeholder: 'yourhandle',   fieldLabel: 'Handle' },
+  github:   { base: 'https://github.com/',      showAt: true,  placeholder: 'yourhandle',   fieldLabel: 'Handle' },
+  linkedin: { base: 'https://linkedin.com/in/', showAt: false, placeholder: 'your-profile', fieldLabel: 'Profile slug' },
+  youtube:  { base: 'https://youtube.com/@',    showAt: true,  placeholder: 'yourchannel',  fieldLabel: 'Handle' },
+};
+
+function urlToHandle(kind: string, url: string): string {
+  const cfg = HANDLE_CONFIG[kind];
+  if (!cfg || !url) return url ?? '';
+  if (url.startsWith(cfg.base)) return url.slice(cfg.base.length);
+  return url;
+}
+
+function handleToUrl(kind: string, raw: string): string {
+  const cfg = HANDLE_CONFIG[kind];
+  if (!cfg) return raw;
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  const handle = raw.replace(/^@/, '').trim();
+  if (!handle) return '';
+  return cfg.base + handle;
+}
+
 export function LinkRow({ link, index, total, onChange, onMoveUp, onMoveDown, onRemove }: Props) {
   const isFirst = index === 0;
   const isLast = index === total - 1;
+  const handleCfg = HANDLE_CONFIG[link.kind];
+  const isHandleKind = !!handleCfg;
+
+  const handleValue = isHandleKind ? urlToHandle(link.kind, link.url) : link.url;
+  const resolvedUrl = isHandleKind ? handleToUrl(link.kind, handleValue) : link.url;
+  const showPreview = isHandleKind && !!resolvedUrl && resolvedUrl !== handleValue;
 
   return (
     <div className="bg-muted border border-border rounded-lg p-3 space-y-3">
@@ -69,7 +105,16 @@ export function LinkRow({ link, index, total, onChange, onMoveUp, onMoveDown, on
           <select
             id={`link-kind-${link.linkKey}`}
             value={link.kind}
-            onChange={(e) => onChange({ kind: e.target.value as LinkKind })}
+            onChange={(e) => {
+              const newKind = e.target.value as LinkKind;
+              const newCfg = HANDLE_CONFIG[newKind];
+              // Re-derive URL when switching between kinds
+              const currentHandle = HANDLE_CONFIG[link.kind]
+                ? urlToHandle(link.kind, link.url)
+                : link.url;
+              const newUrl = newCfg ? handleToUrl(newKind, currentHandle) : link.url;
+              onChange({ kind: newKind, url: newUrl });
+            }}
             className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-150"
           >
             {kindOptions.map((opt) => (
@@ -103,16 +148,41 @@ export function LinkRow({ link, index, total, onChange, onMoveUp, onMoveDown, on
           htmlFor={`link-url-${link.linkKey}`}
           className="block text-xs font-medium text-text-muted"
         >
-          URL
+          {isHandleKind ? handleCfg.fieldLabel : 'URL'}
         </label>
-        <input
-          id={`link-url-${link.linkKey}`}
-          type="url"
-          value={link.url}
-          onChange={(e) => onChange({ url: e.target.value })}
-          placeholder="https://example.com"
-          className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-150"
-        />
+        {isHandleKind ? (
+          <div className="space-y-1">
+            <div className="relative flex items-center">
+              {handleCfg.showAt && (
+                <span className="absolute left-3 text-sm text-text-muted select-none pointer-events-none">
+                  @
+                </span>
+              )}
+              <input
+                id={`link-url-${link.linkKey}`}
+                type="text"
+                value={handleValue}
+                onChange={(e) => onChange({ url: handleToUrl(link.kind, e.target.value) })}
+                placeholder={handleCfg.placeholder}
+                className={`w-full bg-surface border border-border rounded-lg py-2 text-sm text-foreground placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-150 ${handleCfg.showAt ? 'pl-7 pr-3' : 'px-3'}`}
+              />
+            </div>
+            {showPreview && (
+              <p className="text-xs text-text-muted truncate" title={resolvedUrl}>
+                {resolvedUrl}
+              </p>
+            )}
+          </div>
+        ) : (
+          <input
+            id={`link-url-${link.linkKey}`}
+            type="url"
+            value={link.url}
+            onChange={(e) => onChange({ url: e.target.value })}
+            placeholder="https://example.com"
+            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-150"
+          />
+        )}
       </div>
 
       {link.kind === 'custom' && (
