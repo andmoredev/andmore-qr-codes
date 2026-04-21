@@ -69,7 +69,7 @@ export interface AnalyticsSummary {
   byDay: AnalyticsBucket[];
   byCountry: Array<{ country: string; count: number }>;
   byDevice: Array<{ deviceType: DeviceType; count: number }>;
-  byLink?: Array<{ linkKey: string; count: number }>;
+  byLink?: Array<{ linkKey: string; label: string; count: number }>;
 }
 
 export interface DashboardSummary {

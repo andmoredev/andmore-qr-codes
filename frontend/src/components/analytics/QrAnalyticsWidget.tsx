@@ -142,8 +142,8 @@ export function QrAnalyticsWidget({ qrId }: Props) {
                         .sort((a, b) => b.count - a.count)
                         .map(row => (
                           <tr key={row.linkKey} className="border-b border-border last:border-0">
-                            <td className="py-2 pr-4 text-foreground truncate max-w-[20rem]" title={row.linkKey}>
-                              {row.linkKey}
+                            <td className="py-2 pr-4 text-foreground truncate max-w-[20rem]" title={row.label}>
+                              {row.label}
                             </td>
                             <td className="py-2 text-right tabular-nums text-foreground">
                               {row.count.toLocaleString()}
