@@ -2,23 +2,12 @@ const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+const { respond } = require('./shared/cors');
 
 const s3 = new S3Client({});
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 const PRESIGN_TTL_SECONDS = 3600;
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-};
-
-const respond = (statusCode, body) => ({
-  statusCode,
-  headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
-  body: JSON.stringify(body),
-});
 
 exports.handler = async (event) => {
   const userId = event.requestContext?.authorizer?.claims?.sub;
