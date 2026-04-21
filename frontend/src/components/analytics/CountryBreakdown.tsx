@@ -42,7 +42,7 @@ export function CountryBreakdown({ data, topN = 5 }: Props) {
           <li key={row.country} className="space-y-1">
             <div className="flex items-center justify-between text-sm">
               <span className="text-foreground">{prettyCountry(row.country)}</span>
-              <span className="text-text-muted tabular-nums">
+              <span className="text-text-muted tabular-nums whitespace-nowrap">
                 {row.count.toLocaleString()} <span className="text-xs">({row.pct}%)</span>
               </span>
             </div>
