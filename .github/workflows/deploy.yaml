@@ -55,7 +55,7 @@ jobs:
           python-version: '3.12'
 
       - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.PIPELINE_EXECUTION_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
@@ -114,7 +114,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.PIPELINE_EXECUTION_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
