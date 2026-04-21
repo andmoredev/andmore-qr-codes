@@ -104,9 +104,12 @@ exports.handler = async (event) => {
     // Clicks — only for page-backed QRs, fanned out across every linkKey on the page.
     let clicksPromise = Promise.resolve([]);
     let linkKeys = [];
+    let linkLabelMap = new Map();
     if (qr.type === 'page' && qr.pageId) {
       const page = await getPageByUser(userId, qr.pageId);
-      linkKeys = Array.isArray(page?.links) ? page.links.map((l) => l.linkKey).filter(Boolean) : [];
+      const pageLinks = Array.isArray(page?.links) ? page.links : [];
+      linkKeys = pageLinks.map((l) => l.linkKey).filter(Boolean);
+      linkLabelMap = new Map(pageLinks.map((l) => [l.linkKey, l.label ?? l.linkKey]));
       if (linkKeys.length > 0) {
         clicksPromise = Promise.all(
           linkKeys.map((linkKey) => queryClicks({ qrId, linkKey, from: fromIso, to: toIso }))
@@ -142,7 +145,7 @@ exports.handler = async (event) => {
           counts.set(evt.linkKey, (counts.get(evt.linkKey) ?? 0) + 1);
         }
         return [...counts.entries()]
-          .map(([linkKey, count]) => ({ linkKey, count }))
+          .map(([linkKey, count]) => ({ linkKey, label: linkLabelMap.get(linkKey) ?? linkKey, count }))
           .sort((a, b) => b.count - a.count);
       })()
       : undefined;
