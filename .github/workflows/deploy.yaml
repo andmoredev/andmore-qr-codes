@@ -27,6 +27,7 @@ env:
 permissions:
   id-token: write
   contents: read
+  pull-requests: write
 
 jobs:
   deploy-backend:
@@ -144,3 +145,18 @@ jobs:
 
           echo "## Frontend Deployed" >> $GITHUB_STEP_SUMMARY
           echo "**URL:** ${{ needs.deploy-backend.outputs.cf_url }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment deploy URLs on PR
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: deploy-urls
+          message: |
+            ### Deploy preview
+
+            | Surface | URL |
+            |---|---|
+            | Frontend | ${{ needs.deploy-backend.outputs.cf_url }} |
+            | API | ${{ needs.deploy-backend.outputs.api_url }} |
+
+            <sub>Updated for commit `${{ github.event.pull_request.head.sha }}` · [Workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>
