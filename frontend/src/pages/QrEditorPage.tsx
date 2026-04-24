@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { createQr, getQr, updateQr } from '../services/qrs';
 import { listPages } from '../services/pages';
+import { QrLivePreview } from '../components/QrLivePreview';
 import type { LinkPage, QrCode, QrType, QrStyle } from '../types';
 
 function fileToBase64(file: File): Promise<string> {
@@ -463,6 +464,23 @@ export function QrEditorPage() {
             ))}
           </div>
         </div>
+
+        {/* Live preview */}
+        {(type === 'direct' ? isValidUrl(destinationUrl) : Boolean(pageId)) && (
+          <div className="space-y-1.5">
+            <span className="text-sm font-medium text-foreground">Preview</span>
+            <div className="flex justify-center bg-muted border border-border rounded-xl p-4">
+              <QrLivePreview
+                url={type === 'direct' ? destinationUrl : `https://andmore.app/r/${pageId}`}
+                style={style}
+                logoUrl={logoCleared ? null : (logoPreview ?? existingLogoUrl)}
+              />
+            </div>
+            <p className="text-xs text-text-muted text-center">
+              Preview only — the saved QR will encode the scan-redirect URL.
+            </p>
+          </div>
+        )}
 
         {/* Enabled toggle (edit mode only) */}
         {editMode && (
