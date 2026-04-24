@@ -8,6 +8,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { QrListPage } from './pages/QrListPage';
 import { QrEditorPage } from './pages/QrEditorPage';
 import { QrDetailPage } from './pages/QrDetailPage';
+import { PresenterPage } from './pages/PresenterPage';
 import { PageListPage } from './pages/PageListPage';
 import { PageEditorPage } from './pages/PageEditorPage';
 import { PagePreviewPage } from './pages/PagePreviewPage';
@@ -33,6 +34,14 @@ export default function App() {
           <Route path="/qrs/new" element={authed(<QrEditorPage />)} />
           <Route path="/qrs/:qrId" element={authed(<QrDetailPage />)} />
           <Route path="/qrs/:qrId/edit" element={authed(<QrEditorPage />)} />
+          <Route
+            path="/qrs/:qrId/present"
+            element={
+              <ProtectedRoute>
+                <PresenterPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/pages" element={authed(<PageListPage />)} />
           <Route path="/pages/new" element={authed(<PageEditorPage />)} />
           <Route path="/pages/:pageId" element={authed(<PageEditorPage />)} />

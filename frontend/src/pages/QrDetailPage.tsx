@@ -8,6 +8,7 @@ import {
   Download,
   ExternalLink,
   Link2,
+  Monitor,
   Pencil,
   Power,
   QrCode as QrIcon,
@@ -156,6 +157,13 @@ export function QrDetailPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            to={`/qrs/${qr.qrId}/present`}
+            className="inline-flex items-center gap-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150"
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            Present
+          </Link>
           <Link
             to={`/qrs/${qr.qrId}/edit`}
             className="inline-flex items-center gap-1.5 bg-muted border border-border hover:bg-muted/70 text-foreground rounded-lg px-3 py-2 text-sm transition-colors duration-150"
