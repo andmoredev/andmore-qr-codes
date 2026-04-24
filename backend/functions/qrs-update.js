@@ -64,8 +64,13 @@ exports.handler = async (event) => {
     if (!existing) return respond(404, { error: 'QR code not found' });
 
     const {
-      name, destinationUrl, pageId, logoBase64, enabled,
+      name, destinationUrl, pageId, logoBase64, enabled, style,
     } = body;
+
+    const validStyles = ['square', 'rounded', 'dots'];
+    if (style !== undefined && !validStyles.includes(style)) {
+      return respond(400, { error: '"style" must be one of: square, rounded, dots' });
+    }
 
     // Validate any provided fields without changing type.
     if (name !== undefined && (typeof name !== 'string' || !name)) {
@@ -112,7 +117,7 @@ exports.handler = async (event) => {
 
     let pngBuffer;
     try {
-      pngBuffer = await renderQrPng({ url: scanUrl, logoBuffer });
+      pngBuffer = await renderQrPng({ url: scanUrl, logoBuffer, style: style ?? existing.style ?? 'square' });
     } catch (err) {
       if (err instanceof QrRenderValidationError) {
         return respond(400, { error: err.message });
@@ -143,6 +148,8 @@ exports.handler = async (event) => {
     }
     await Promise.all(uploads);
 
+    const resolvedStyle = style ?? existing.style ?? 'square';
+
     // Snapshot the PRIOR state at V#{newVersion} so version history shows the
     // state just before this change alongside the new currentVersion pointer.
     const snapshotItem = {
@@ -162,6 +169,7 @@ exports.handler = async (event) => {
       // new state (post-change) stored for restore convenience:
       name: name ?? existing.name,
       type: existing.type,
+      style: resolvedStyle,
       ...(existing.type === 'direct' && {
         destinationUrl: destinationUrl !== undefined ? destinationUrl : existing.destinationUrl,
       }),
@@ -179,6 +187,7 @@ exports.handler = async (event) => {
       userId,
       name: name ?? existing.name,
       type: existing.type,
+      style: resolvedStyle,
       ...(existing.type === 'direct' && {
         destinationUrl: destinationUrl !== undefined ? destinationUrl : existing.destinationUrl,
       }),
@@ -228,6 +237,7 @@ exports.handler = async (event) => {
       userId,
       name: updatedItem.name,
       type: updatedItem.type,
+      style: updatedItem.style,
       destinationUrl: updatedItem.destinationUrl ?? null,
       pageId: updatedItem.pageId ?? null,
       qrCodeUrl,

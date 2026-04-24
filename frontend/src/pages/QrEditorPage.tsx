@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { createQr, getQr, updateQr } from '../services/qrs';
 import { listPages } from '../services/pages';
-import type { LinkPage, QrCode, QrType } from '../types';
+import type { LinkPage, QrCode, QrType, QrStyle } from '../types';
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -49,6 +49,7 @@ export function QrEditorPage() {
   const [destinationUrl, setDestinationUrl] = useState('');
   const [pageId, setPageId] = useState('');
   const [enabled, setEnabled] = useState(true);
+  const [style, setStyle] = useState<QrStyle>('square');
 
   const [pages, setPages] = useState<LinkPage[]>([]);
   const [pagesLoading, setPagesLoading] = useState(true);
@@ -108,6 +109,7 @@ export function QrEditorPage() {
     setDestinationUrl(qr.destinationUrl ?? '');
     setPageId(qr.pageId ?? '');
     setEnabled(qr.enabled);
+    setStyle(qr.style ?? 'square');
     setExistingLogoUrl(qr.logoUrl ?? null);
     setLogoFile(null);
     setLogoPreview(null);
@@ -169,6 +171,7 @@ export function QrEditorPage() {
       if (editMode && qrId) {
         const body: Parameters<typeof updateQr>[1] = {
           name: name.trim(),
+          style,
           enabled,
         };
         if (type === 'direct') {
@@ -187,6 +190,7 @@ export function QrEditorPage() {
         const body: Parameters<typeof createQr>[0] = {
           name: name.trim(),
           type,
+          style,
           ...(type === 'direct'
             ? { destinationUrl: destinationUrl.trim() }
             : { pageId }),
@@ -431,6 +435,34 @@ export function QrEditorPage() {
         {/* Logo */}
         {renderLogoSection()}
 
+        {/* Dot style */}
+        <div className="space-y-1.5">
+          <span className="text-sm font-medium text-foreground">Dot style</span>
+          <div role="radiogroup" aria-label="QR dot style" className="grid grid-cols-3 gap-2">
+            {([
+              { value: 'square' as QrStyle, label: 'Square', preview: 'square' },
+              { value: 'rounded' as QrStyle, label: 'Rounded', preview: 'rounded' },
+              { value: 'dots'   as QrStyle, label: 'Dots',    preview: 'dots'   },
+            ] as const).map(({ value, label, preview }) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={style === value}
+                onClick={() => setStyle(value)}
+                className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-colors duration-150 cursor-pointer ${
+                  style === value
+                    ? 'border-accent bg-accent/5'
+                    : 'border-border bg-muted hover:border-accent/50'
+                }`}
+              >
+                <QrStylePreview variant={preview} active={style === value} />
+                <span className="text-xs font-medium text-foreground">{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Enabled toggle (edit mode only) */}
         {editMode && (
           <div className="flex items-center justify-between gap-4 bg-muted border border-border rounded-lg px-4 py-3">
@@ -493,5 +525,38 @@ export function QrEditorPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+function QrStylePreview({ variant, active }: { variant: 'square' | 'rounded' | 'dots'; active: boolean }) {
+  const fill = active ? '#22C55E' : '#475569';
+  const grid = [0, 1, 2, 3, 4].flatMap(r => [0, 1, 2, 3, 4].map(c => ({ r, c })));
+  const size = 40;
+  const cell = size / 5;
+  const gap = 1;
+  const mod = cell - gap;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+      {grid.map(({ r, c }) => {
+        const x = c * cell + gap / 2;
+        const y = r * cell + gap / 2;
+        if (variant === 'dots') {
+          return (
+            <circle
+              key={`${r}-${c}`}
+              cx={x + mod / 2}
+              cy={y + mod / 2}
+              r={mod / 2 * 0.85}
+              fill={fill}
+            />
+          );
+        }
+        const rx = variant === 'rounded' ? mod * 0.28 : 0;
+        return (
+          <rect key={`${r}-${c}`} x={x} y={y} width={mod} height={mod} rx={rx} ry={rx} fill={fill} />
+        );
+      })}
+    </svg>
   );
 }
