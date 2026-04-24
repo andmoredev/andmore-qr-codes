@@ -67,9 +67,9 @@ exports.handler = async (event) => {
       name, destinationUrl, pageId, logoBase64, enabled, style,
     } = body;
 
-    const validStyles = ['square', 'rounded', 'dots'];
+    const validStyles = ['square', 'rounded', 'dots', 'fluid'];
     if (style !== undefined && !validStyles.includes(style)) {
-      return respond(400, { error: '"style" must be one of: square, rounded, dots' });
+      return respond(400, { error: '"style" must be one of: square, rounded, dots, fluid' });
     }
 
     // Validate any provided fields without changing type.

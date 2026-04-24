@@ -50,9 +50,9 @@ exports.handler = async (event) => {
 
   const { name, type, destinationUrl, pageId, logoBase64, style = 'square' } = body;
 
-  const validStyles = ['square', 'rounded', 'dots'];
+  const validStyles = ['square', 'rounded', 'dots', 'fluid'];
   if (!validStyles.includes(style)) {
-    return respond(400, { error: '"style" must be one of: square, rounded, dots' });
+    return respond(400, { error: '"style" must be one of: square, rounded, dots, fluid' });
   }
 
   if (!name || typeof name !== 'string') {

@@ -7,7 +7,7 @@ const LOGO_RATIO = 0.25;
 const BORDER_WIDTH = 12;
 const MAX_ASPECT_RATIO = 1.5;
 
-const VALID_STYLES = ['square', 'rounded', 'dots'];
+const VALID_STYLES = ['square', 'rounded', 'dots', 'fluid'];
 
 class QrRenderValidationError extends Error {
   constructor(message) {
@@ -65,7 +65,91 @@ function drawDot(image, x, y, sz) {
   });
 }
 
+/**
+ * Paint a filled circle of `color` (0 = black, 255 = white) at pixel (cx, cy).
+ * Used by the fluid renderer for corner cuts and concave fills.
+ */
+function paintCircle(image, cx, cy, r, color) {
+  const x0 = Math.max(0, cx - r);
+  const y0 = Math.max(0, cy - r);
+  const w = Math.min(QR_SIZE, cx + r + 1) - x0;
+  const h = Math.min(QR_SIZE, cy + r + 1) - y0;
+  if (w <= 0 || h <= 0) return;
+  image.scan(x0, y0, w, h, function (px, py, idx) {
+    const dx = px - cx;
+    const dy = py - cy;
+    if (dx * dx + dy * dy < r * r) {
+      this.bitmap.data[idx] = color;
+      this.bitmap.data[idx + 1] = color;
+      this.bitmap.data[idx + 2] = color;
+      this.bitmap.data[idx + 3] = 255;
+    }
+  });
+}
+
+/**
+ * Fluid style: fill every dark module as a solid square, then:
+ *   1. Cut outer corners (white quarter-circle) where both edge-adjacent
+ *      neighbors in that corner direction are absent.
+ *   2. Fill inner concave junctions (black quarter-circle) where two
+ *      edge-adjacent neighbors are present but the diagonal is absent —
+ *      this smooths the concavity in the white space.
+ */
+function renderFluid(image, qr, moduleSize, offsetX, offsetY) {
+  const sz = moduleSize;
+  const cr = Math.round(sz * 0.4);
+  const { size } = qr.modules;
+
+  function dark(r, c) {
+    if (r < 0 || r >= size || c < 0 || c >= size) return false;
+    return qr.modules.get(r, c);
+  }
+
+  // Pass 1: fill squares + cut outer corners
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (!dark(r, c)) continue;
+      const x = offsetX + (c + QUIET_ZONE) * sz;
+      const y = offsetY + (r + QUIET_ZONE) * sz;
+
+      drawSquare(image, x, y, sz);
+
+      const T = dark(r - 1, c);
+      const R = dark(r, c + 1);
+      const B = dark(r + 1, c);
+      const L = dark(r, c - 1);
+
+      if (!T && !L) paintCircle(image, x,      y,      cr, 255);
+      if (!T && !R) paintCircle(image, x + sz, y,      cr, 255);
+      if (!B && !L) paintCircle(image, x,      y + sz, cr, 255);
+      if (!B && !R) paintCircle(image, x + sz, y + sz, cr, 255);
+    }
+  }
+
+  // Pass 2: fill inner concave junctions
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (!dark(r, c)) continue;
+      const x = offsetX + (c + QUIET_ZONE) * sz;
+      const y = offsetY + (r + QUIET_ZONE) * sz;
+
+      if (dark(r, c + 1) && dark(r + 1, c) && !dark(r + 1, c + 1))
+        paintCircle(image, x + sz, y + sz, cr, 0);
+      if (dark(r, c - 1) && dark(r + 1, c) && !dark(r + 1, c - 1))
+        paintCircle(image, x,      y + sz, cr, 0);
+      if (dark(r, c + 1) && dark(r - 1, c) && !dark(r - 1, c + 1))
+        paintCircle(image, x + sz, y,      cr, 0);
+      if (dark(r, c - 1) && dark(r - 1, c) && !dark(r - 1, c - 1))
+        paintCircle(image, x,      y,      cr, 0);
+    }
+  }
+}
+
 function renderModules(image, qr, moduleSize, offsetX, offsetY, style) {
+  if (style === 'fluid') {
+    renderFluid(image, qr, moduleSize, offsetX, offsetY);
+    return;
+  }
   const { size } = qr.modules;
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {

@@ -4,7 +4,7 @@
  */
 
 export type LinkKind = 'x' | 'linkedin' | 'youtube' | 'github' | 'blog' | 'custom';
-export type QrStyle = 'square' | 'rounded' | 'dots';
+export type QrStyle = 'square' | 'rounded' | 'dots' | 'fluid';
 
 export interface LinkItem {
   linkKey: string;

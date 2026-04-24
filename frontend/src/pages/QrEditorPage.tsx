@@ -438,12 +438,13 @@ export function QrEditorPage() {
         {/* Dot style */}
         <div className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Dot style</span>
-          <div role="radiogroup" aria-label="QR dot style" className="grid grid-cols-3 gap-2">
+          <div role="radiogroup" aria-label="QR dot style" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {([
-              { value: 'square' as QrStyle, label: 'Square', preview: 'square' },
-              { value: 'rounded' as QrStyle, label: 'Rounded', preview: 'rounded' },
-              { value: 'dots'   as QrStyle, label: 'Dots',    preview: 'dots'   },
-            ] as const).map(({ value, label, preview }) => (
+              { value: 'square'  as QrStyle, label: 'Square'  },
+              { value: 'rounded' as QrStyle, label: 'Rounded' },
+              { value: 'dots'    as QrStyle, label: 'Dots'    },
+              { value: 'fluid'   as QrStyle, label: 'Fluid'   },
+            ] as const).map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
@@ -456,7 +457,7 @@ export function QrEditorPage() {
                     : 'border-border bg-muted hover:border-accent/50'
                 }`}
               >
-                <QrStylePreview variant={preview} active={style === value} />
+                <QrStylePreview variant={value} active={style === value} />
                 <span className="text-xs font-medium text-foreground">{label}</span>
               </button>
             ))}
@@ -528,14 +529,51 @@ export function QrEditorPage() {
   );
 }
 
-function QrStylePreview({ variant, active }: { variant: 'square' | 'rounded' | 'dots'; active: boolean }) {
+function QrStylePreview({ variant, active }: { variant: QrStyle; active: boolean }) {
   const fill = active ? '#22C55E' : '#475569';
-  const grid = [0, 1, 2, 3, 4].flatMap(r => [0, 1, 2, 3, 4].map(c => ({ r, c })));
   const size = 40;
   const cell = size / 5;
   const gap = 1;
   const mod = cell - gap;
 
+  if (variant === 'fluid') {
+    // Show two overlapping blobs (L-shaped group) + corner isolated dots
+    const cr = mod * 0.4;
+    // 2×2 blob at rows 1-2, cols 2-3
+    const bx = 2 * cell + gap / 2;
+    const by = 1 * cell + gap / 2;
+    const bw = 2 * mod + gap;
+    const bh = 2 * mod + gap;
+    // single attached module below-left of blob
+    const ex = 1 * cell + gap / 2;
+    const ey = 2 * cell + gap / 2;
+    // isolated corner dots
+    const corners: [number, number][] = [[0, 0], [0, 4], [4, 0], [4, 4]];
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        {/* merged blob — single rounded rect spanning 2×2 */}
+        <rect x={bx} y={by} width={bw} height={bh} rx={cr} ry={cr} fill={fill} />
+        {/* extra module extending left, flush on shared edge */}
+        <rect x={ex} y={ey} width={mod} height={mod} rx={cr} ry={cr} fill={fill} />
+        {/* bridge between extra module and blob (fills the gap at their shared corner) */}
+        <rect x={bx - cr * 0.8} y={ey} width={cr * 0.8} height={mod} fill={fill} />
+        {/* inner concave fill at junction */}
+        <circle cx={bx} cy={ey + mod} r={cr * 0.85} fill={fill} />
+        {/* isolated corner dots */}
+        {corners.map(([r, c]) => (
+          <rect
+            key={`${r}-${c}`}
+            x={c * cell + gap / 2} y={r * cell + gap / 2}
+            width={mod} height={mod}
+            rx={cr} ry={cr}
+            fill={fill}
+          />
+        ))}
+      </svg>
+    );
+  }
+
+  const grid = [0, 1, 2, 3, 4].flatMap(r => [0, 1, 2, 3, 4].map(c => ({ r, c })));
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       {grid.map(({ r, c }) => {
@@ -543,19 +581,11 @@ function QrStylePreview({ variant, active }: { variant: 'square' | 'rounded' | '
         const y = r * cell + gap / 2;
         if (variant === 'dots') {
           return (
-            <circle
-              key={`${r}-${c}`}
-              cx={x + mod / 2}
-              cy={y + mod / 2}
-              r={mod / 2 * 0.85}
-              fill={fill}
-            />
+            <circle key={`${r}-${c}`} cx={x + mod / 2} cy={y + mod / 2} r={mod / 2 * 0.85} fill={fill} />
           );
         }
         const rx = variant === 'rounded' ? mod * 0.28 : 0;
-        return (
-          <rect key={`${r}-${c}`} x={x} y={y} width={mod} height={mod} rx={rx} ry={rx} fill={fill} />
-        );
+        return <rect key={`${r}-${c}`} x={x} y={y} width={mod} height={mod} rx={rx} ry={rx} fill={fill} />;
       })}
     </svg>
   );
