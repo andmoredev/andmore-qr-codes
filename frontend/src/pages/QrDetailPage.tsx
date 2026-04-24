@@ -5,8 +5,9 @@ import {
   Calendar,
   Check,
   Copy,
-  Download,
   ExternalLink,
+  FileImage,
+  FileCode,
   Link2,
   Pencil,
   Power,
@@ -25,6 +26,14 @@ import type { QrCode } from '../types';
 import { VersionsPanel } from '../components/VersionsPanel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { QrAnalyticsWidget } from '../components/analytics/QrAnalyticsWidget';
+import { QrLivePreview } from '../components/QrLivePreview';
+import { exportQrPng, exportQrSvg } from '../lib/renderQr';
+
+const PNG_EXPORT_SIZE = 2048;
+
+function fileSlug(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'qr';
+}
 
 export function QrDetailPage() {
   const { qrId } = useParams<{ qrId: string }>();
@@ -40,6 +49,10 @@ export function QrDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [versionsKey, setVersionsKey] = useState(0);
+
+  const [transparent, setTransparent] = useState(false);
+  const [downloading, setDownloading] = useState<null | 'svg' | 'png'>(null);
+  const [downloadError, setDownloadError] = useState('');
 
   const load = useCallback(async () => {
     if (!qrId) return;
@@ -104,6 +117,34 @@ export function QrDetailPage() {
     await restoreQrVersion(qrId, version);
     await load();
     setVersionsKey(k => k + 1);
+  };
+
+  const handleDownload = async (format: 'svg' | 'png') => {
+    if (!qr || !redirectUrl) return;
+    setDownloadError('');
+    setDownloading(format);
+    const slug = fileSlug(qr.name);
+    const transparentSuffix = transparent ? '-transparent' : '';
+    const opts = {
+      url: redirectUrl,
+      style: qr.style,
+      logoUrl: qr.logoUrl ?? null,
+      transparent,
+    };
+    try {
+      if (format === 'svg') {
+        await exportQrSvg({ ...opts, size: 1024 }, `${slug}${transparentSuffix}.svg`);
+      } else {
+        await exportQrPng(
+          { ...opts, size: PNG_EXPORT_SIZE },
+          `${slug}-${PNG_EXPORT_SIZE}${transparentSuffix}.png`,
+        );
+      }
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setDownloading(null);
+    }
   };
 
   if (loading) {
@@ -199,28 +240,75 @@ export function QrDetailPage() {
         <div className="lg:col-span-2 space-y-6">
           <section className="bg-surface border border-border rounded-xl p-6 space-y-4">
             <div className="flex flex-col sm:flex-row gap-6">
-              <div className="w-full sm:w-56 shrink-0">
-                <div className="aspect-square bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-                  {qr.qrCodeUrl ? (
-                    <img
-                      src={qr.qrCodeUrl}
-                      alt={`QR code for ${qr.name}`}
-                      className="w-full h-full object-contain p-3"
+              <div className="w-full sm:w-56 shrink-0 space-y-3">
+                <div
+                  className={`aspect-square rounded-lg overflow-hidden flex items-center justify-center p-3 ${
+                    transparent
+                      ? 'bg-[repeating-conic-gradient(#334155_0%_25%,#1e293b_0%_50%)] bg-[length:16px_16px]'
+                      : 'bg-muted'
+                  }`}
+                >
+                  {redirectUrl ? (
+                    <QrLivePreview
+                      url={redirectUrl}
+                      style={qr.style}
+                      logoUrl={qr.logoUrl ?? null}
+                      size={196}
+                      className="rounded-md"
                     />
                   ) : (
                     <QrIcon className="w-12 h-12 text-text-muted" />
                   )}
                 </div>
-                {qr.qrCodeUrl && (
-                  <a
-                    href={qr.qrCodeUrl}
-                    download={`${qr.name.replace(/\s+/g, '-').toLowerCase()}-qr.png`}
-                    className="mt-3 w-full inline-flex items-center justify-center gap-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150"
+
+                <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={transparent}
+                    onChange={(e) => setTransparent(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-border bg-muted text-accent focus:ring-accent focus:ring-offset-0 cursor-pointer"
+                  />
+                  Transparent background
+                </label>
+
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDownload('svg')}
+                    disabled={downloading !== null}
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 disabled:opacity-50 cursor-pointer"
+                    title="Vector — best for slides and print"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    Download PNG
-                  </a>
+                    {downloading === 'svg' ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <FileCode className="w-3.5 h-3.5" />
+                    )}
+                    Download SVG
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownload('png')}
+                    disabled={downloading !== null}
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-muted border border-border hover:bg-muted/70 text-foreground rounded-lg px-3 py-2 text-sm transition-colors duration-150 disabled:opacity-50 cursor-pointer"
+                    title={`Raster PNG at ${PNG_EXPORT_SIZE}×${PNG_EXPORT_SIZE}`}
+                  >
+                    {downloading === 'png' ? (
+                      <span className="w-3.5 h-3.5 border-2 border-foreground border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <FileImage className="w-3.5 h-3.5" />
+                    )}
+                    PNG · {PNG_EXPORT_SIZE}px
+                  </button>
+                </div>
+
+                {downloadError && (
+                  <p className="text-xs text-destructive">{downloadError}</p>
                 )}
+
+                <p className="text-[11px] text-text-muted leading-snug">
+                  SVG is the clean choice for Keynote / Google Slides / PowerPoint — scales to any size without blur.
+                </p>
               </div>
 
               <div className="flex-1 space-y-4 min-w-0">
