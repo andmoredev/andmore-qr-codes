@@ -2,7 +2,7 @@ const QRCode = require('qrcode');
 const Jimp = require('jimp');
 
 const QR_SIZE = 500;
-const QUIET_ZONE = 4;
+const QUIET_ZONE = 2;
 const LOGO_RATIO = 0.25;
 const BORDER_WIDTH = 12;
 const MAX_ASPECT_RATIO = 1.5;
@@ -70,10 +70,12 @@ function drawDot(image, x, y, sz) {
  * Used by the fluid renderer for corner cuts and concave fills.
  */
 function paintCircle(image, cx, cy, r, color) {
+  const W = image.getWidth();
+  const H = image.getHeight();
   const x0 = Math.max(0, cx - r);
   const y0 = Math.max(0, cy - r);
-  const w = Math.min(QR_SIZE, cx + r + 1) - x0;
-  const h = Math.min(QR_SIZE, cy + r + 1) - y0;
+  const w = Math.min(W, cx + r + 1) - x0;
+  const h = Math.min(H, cy + r + 1) - y0;
   if (w <= 0 || h <= 0) return;
   image.scan(x0, y0, w, h, function (px, py, idx) {
     const dx = px - cx;
@@ -97,7 +99,7 @@ function paintCircle(image, cx, cy, r, color) {
  */
 function renderFluid(image, qr, moduleSize, offsetX, offsetY) {
   const sz = moduleSize;
-  const cr = Math.round(sz * 0.4);
+  const cr = Math.round(sz * 0.40);
   const { size } = qr.modules;
 
   function dark(r, c) {
@@ -198,14 +200,22 @@ async function renderQrPng({ url, logoBuffer, style = 'square' }) {
 
   const qr = QRCode.create(url, { errorCorrectionLevel: 'H' });
   const { size } = qr.modules;
+  // Render fluid at 2x then downscale — Jimp's pixel ops have no anti-aliasing,
+  // so supersampling is the only way to get smooth curves.
+  const scale = style === 'fluid' ? 2 : 1;
+  const renderSize = QR_SIZE * scale;
   const totalModules = size + QUIET_ZONE * 2;
-  const moduleSize = Math.floor(QR_SIZE / totalModules);
+  const moduleSize = Math.floor(renderSize / totalModules);
   const actualSize = moduleSize * totalModules;
-  const offsetX = Math.floor((QR_SIZE - actualSize) / 2);
+  const offsetX = Math.floor((renderSize - actualSize) / 2);
   const offsetY = offsetX;
 
-  const image = new Jimp(QR_SIZE, QR_SIZE, 0xffffffff);
+  const image = new Jimp(renderSize, renderSize, 0xffffffff);
   renderModules(image, qr, moduleSize, offsetX, offsetY, style);
+
+  if (scale > 1) {
+    image.resize(QR_SIZE, QR_SIZE);
+  }
 
   if (!logoBuffer) {
     return image.getBufferAsync(Jimp.MIME_PNG);

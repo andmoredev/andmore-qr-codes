@@ -8,8 +8,8 @@ interface QrLivePreviewProps {
   logoUrl?: string | null;
 }
 
-const CANVAS_SIZE = 220;
-const QUIET_ZONE = 4;
+const DISPLAY_SIZE = 220;
+const QUIET_ZONE = 2;
 const LOGO_RATIO = 0.25;
 const LOGO_BORDER = 10;
 
@@ -39,7 +39,7 @@ function renderFluid(
   offsetY: number,
 ) {
   const { size } = modules;
-  const cr = Math.round(moduleSize * 0.4);
+  const cr = moduleSize * 0.40;
 
   const dark = (r: number, c: number) =>
     r >= 0 && r < size && c >= 0 && c < size && modules.get(r, c);
@@ -94,14 +94,21 @@ export function QrLivePreview({ url, style, logoUrl }: QrLivePreviewProps) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // HiDPI: scale canvas buffer to device pixel ratio so arcs are crisp
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = DISPLAY_SIZE * dpr;
+    canvas.height = DISPLAY_SIZE * dpr;
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    ctx.scale(dpr, dpr);
 
     let cancelled = false;
 
     async function render() {
       ctx!.fillStyle = 'white';
-      ctx!.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      ctx!.fillRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE);
 
       if (!url) {
         ctx!.fillStyle = '#334155';
@@ -120,15 +127,15 @@ export function QrLivePreview({ url, style, logoUrl }: QrLivePreviewProps) {
         const modules = qr.modules as BitMatrix;
         const { size } = modules;
         const totalModules = size + QUIET_ZONE * 2;
-        const moduleSize = Math.floor(CANVAS_SIZE / totalModules);
+        const moduleSize = Math.floor(DISPLAY_SIZE / totalModules);
         const actualSize = moduleSize * totalModules;
-        const offsetX = Math.floor((CANVAS_SIZE - actualSize) / 2);
+        const offsetX = Math.floor((DISPLAY_SIZE - actualSize) / 2);
         const offsetY = offsetX;
 
         if (cancelled) return;
 
         ctx!.fillStyle = 'white';
-        ctx!.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+        ctx!.fillRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE);
 
         if (style === 'fluid') {
           renderFluid(ctx!, modules, moduleSize, offsetX, offsetY);
@@ -153,10 +160,10 @@ export function QrLivePreview({ url, style, logoUrl }: QrLivePreviewProps) {
         }
 
         if (logoUrl && !cancelled) {
-          const logoSize = Math.floor(CANVAS_SIZE * LOGO_RATIO);
+          const logoSize = Math.floor(DISPLAY_SIZE * LOGO_RATIO);
           const circleSize = logoSize + LOGO_BORDER * 2;
-          const cx = CANVAS_SIZE / 2;
-          const cy = CANVAS_SIZE / 2;
+          const cx = DISPLAY_SIZE / 2;
+          const cy = DISPLAY_SIZE / 2;
 
           ctx!.fillStyle = 'white';
           ctx!.beginPath();
@@ -192,10 +199,8 @@ export function QrLivePreview({ url, style, logoUrl }: QrLivePreviewProps) {
   return (
     <canvas
       ref={canvasRef}
-      width={CANVAS_SIZE}
-      height={CANVAS_SIZE}
+      style={{ width: DISPLAY_SIZE, height: DISPLAY_SIZE }}
       className="rounded-lg"
-      style={{ imageRendering: 'pixelated' }}
     />
   );
 }
