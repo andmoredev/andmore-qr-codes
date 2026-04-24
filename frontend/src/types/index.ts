@@ -4,6 +4,7 @@
  */
 
 export type LinkKind = 'x' | 'linkedin' | 'youtube' | 'github' | 'blog' | 'custom';
+export type QrStyle = 'square' | 'rounded' | 'dots' | 'fluid';
 
 export interface LinkItem {
   linkKey: string;
@@ -39,6 +40,7 @@ export interface QrCode {
   userId: string;
   name: string;
   type: QrType;
+  style: QrStyle;
   destinationUrl?: string | null;
   pageId?: string | null;
   qrCodeUrl: string;
@@ -103,6 +105,7 @@ export interface PublicPage {
 export interface CreateQrRequest {
   name: string;
   type: QrType;
+  style?: QrStyle;
   destinationUrl?: string;
   pageId?: string;
   logoBase64?: string;
@@ -110,6 +113,7 @@ export interface CreateQrRequest {
 
 export interface UpdateQrRequest {
   name?: string;
+  style?: QrStyle;
   destinationUrl?: string;
   pageId?: string;
   logoBase64?: string | null;

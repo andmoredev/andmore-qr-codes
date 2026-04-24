@@ -48,7 +48,12 @@ exports.handler = async (event) => {
     return respond(400, { error: 'Invalid JSON body' });
   }
 
-  const { name, type, destinationUrl, pageId, logoBase64 } = body;
+  const { name, type, destinationUrl, pageId, logoBase64, style = 'square' } = body;
+
+  const validStyles = ['square', 'rounded', 'dots', 'fluid'];
+  if (!validStyles.includes(style)) {
+    return respond(400, { error: '"style" must be one of: square, rounded, dots, fluid' });
+  }
 
   if (!name || typeof name !== 'string') {
     return respond(400, { error: '"name" is required' });
@@ -88,7 +93,7 @@ exports.handler = async (event) => {
 
     let pngBuffer;
     try {
-      pngBuffer = await renderQrPng({ url: scanUrl, logoBuffer });
+      pngBuffer = await renderQrPng({ url: scanUrl, logoBuffer, style });
     } catch (err) {
       if (err instanceof QrRenderValidationError) {
         return respond(400, { error: err.message });
@@ -123,6 +128,7 @@ exports.handler = async (event) => {
       userId,
       name,
       type,
+      style,
       ...(type === 'direct' && { destinationUrl }),
       ...(type === 'page' && { pageId }),
       qrCodeKey,
@@ -152,6 +158,7 @@ exports.handler = async (event) => {
       versionedAt: now,
       name,
       type,
+      style,
       ...(type === 'direct' && { destinationUrl }),
       ...(type === 'page' && { pageId }),
       qrCodeKey,
@@ -177,6 +184,7 @@ exports.handler = async (event) => {
       userId,
       name,
       type,
+      style,
       destinationUrl: destinationUrl ?? null,
       pageId: pageId ?? null,
       qrCodeUrl,
