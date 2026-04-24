@@ -40,6 +40,7 @@ exports.handler = async (event) => {
         userId: item.userId,
         name: item.name,
         type: item.type,
+        style: item.style ?? 'square',
         destinationUrl: item.destinationUrl ?? null,
         pageId: item.pageId ?? null,
         qrCodeUrl,
