@@ -218,7 +218,12 @@ export function QrEditorPage() {
 
         {preview ? (
           <div className="flex items-center gap-3 bg-muted border border-border rounded-lg px-4 py-3">
-            <img src={preview} alt="Logo preview" className="w-10 h-10 object-cover rounded-md" />
+            <img
+              src={preview}
+              alt="Logo preview"
+              crossOrigin="anonymous"
+              className="w-10 h-10 object-cover rounded-md"
+            />
             <span className="text-sm text-foreground flex-1 truncate">
               {logoFile?.name ?? 'Current logo'}
             </span>
