@@ -91,6 +91,7 @@ exports.handler = async (event) => {
     // by prior updates) and fall back to "prior*" fields from legacy rows.
     const restoredName = ver.name ?? ver.priorName ?? existing.name;
     const restoredType = ver.type ?? ver.priorType ?? existing.type;
+    const restoredStyle = ver.style ?? ver.priorStyle ?? existing.style ?? 'square';
     const restoredDestinationUrl = restoredType === 'direct'
       ? (ver.destinationUrl ?? ver.priorDestinationUrl ?? existing.destinationUrl)
       : undefined;
@@ -116,6 +117,7 @@ exports.handler = async (event) => {
       restoredFrom: n,
       name: restoredName,
       type: restoredType,
+      style: restoredStyle,
       ...(restoredDestinationUrl !== undefined && { destinationUrl: restoredDestinationUrl }),
       ...(restoredPageId !== undefined && { pageId: restoredPageId }),
       qrCodeKey: newQrCodeKey,
@@ -129,6 +131,7 @@ exports.handler = async (event) => {
       userId,
       name: restoredName,
       type: restoredType,
+      style: restoredStyle,
       ...(restoredDestinationUrl !== undefined && { destinationUrl: restoredDestinationUrl }),
       ...(restoredPageId !== undefined && { pageId: restoredPageId }),
       qrCodeKey: newQrCodeKey,
@@ -169,6 +172,7 @@ exports.handler = async (event) => {
       userId,
       name: updatedItem.name,
       type: updatedItem.type,
+      style: updatedItem.style,
       destinationUrl: updatedItem.destinationUrl ?? null,
       pageId: updatedItem.pageId ?? null,
       qrCodeUrl,
