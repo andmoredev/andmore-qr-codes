@@ -25,11 +25,13 @@ import {
 import type {
   LinkItem,
   LinkPage,
+  PageTemplate,
   Theme,
   CreatePageRequest,
   UpdatePageRequest,
 } from '../types';
 import { AvatarUploader } from '../components/AvatarUploader';
+import { BannerUploader } from '../components/BannerUploader';
 import { LinkRow } from '../components/LinkRow';
 import { PublicPageView, type PublicPageViewModel } from '../components/PublicPageView';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -85,14 +87,15 @@ interface FormState {
   displayName: string;
   bio: string;
   theme: Theme;
+  template: PageTemplate;
   accentColor: string;
   links: LinkItem[];
-  /** Remote avatar URL from the server, if any. */
   avatarUrl: string | null;
-  /** base64 (no prefix) if the user uploaded a new image in this session. */
   avatarBase64: string | null;
-  /** True if the user hit Remove. On save this sends avatarBase64: null. */
   avatarCleared: boolean;
+  bannerUrl: string | null;
+  bannerBase64: string | null;
+  bannerCleared: boolean;
 }
 
 const DEFAULT_FORM: FormState = {
@@ -100,11 +103,15 @@ const DEFAULT_FORM: FormState = {
   displayName: '',
   bio: '',
   theme: 'dark',
+  template: 'classic',
   accentColor: '#22C55E',
   links: [],
   avatarUrl: null,
   avatarBase64: null,
   avatarCleared: false,
+  bannerUrl: null,
+  bannerBase64: null,
+  bannerCleared: false,
 };
 
 function formFromPage(p: LinkPage): FormState {
@@ -113,13 +120,43 @@ function formFromPage(p: LinkPage): FormState {
     displayName: p.displayName,
     bio: p.bio ?? '',
     theme: p.theme,
+    template: p.template ?? 'classic',
     accentColor: p.accentColor,
     links: [...p.links].sort((a, b) => a.order - b.order),
     avatarUrl: p.avatarUrl ?? null,
     avatarBase64: null,
     avatarCleared: false,
+    bannerUrl: p.bannerUrl ?? null,
+    bannerBase64: null,
+    bannerCleared: false,
   };
 }
+
+const TEMPLATE_OPTIONS: Array<{
+  value: PageTemplate;
+  name: string;
+  description: string;
+  usesBanner: boolean;
+}> = [
+  {
+    value: 'classic',
+    name: 'Classic',
+    description: 'Centered, clean, button-style links. Works for any vibe.',
+    usesBanner: false,
+  },
+  {
+    value: 'spotlight',
+    name: 'Spotlight',
+    description: 'Banner image up top, big avatar, glassy cards.',
+    usesBanner: true,
+  },
+  {
+    value: 'marquee',
+    name: 'Marquee',
+    description: 'Bold animated gradient and shimmering link buttons.',
+    usesBanner: true,
+  },
+];
 
 /**
  * Adapt the editor form state into a `PublicPageView`-compatible shape so the
@@ -129,12 +166,15 @@ function formFromPage(p: LinkPage): FormState {
 function buildPreviewPageShape(
   form: FormState,
   avatarPreviewSrc: string | null,
+  bannerPreviewSrc: string | null,
 ): PublicPageViewModel {
   return {
     displayName: form.displayName.trim() || 'Your name',
     bio: form.bio,
     avatarUrl: avatarPreviewSrc,
+    bannerUrl: bannerPreviewSrc,
     theme: form.theme,
+    template: form.template,
     accentColor: form.accentColor,
     links: form.links.map((l) => ({
       linkKey: l.linkKey,
@@ -221,14 +261,20 @@ export function PageEditorPage() {
     setForm((f) => ({ ...f, links: [...f.links, blankLink(f.links.length)] }));
   };
 
-  const buildCreateBody = (): CreatePageRequest => ({
-    slug: form.slug,
-    displayName: form.displayName.trim(),
-    bio: form.bio,
-    theme: form.theme,
-    accentColor: form.accentColor,
-    links: form.links.map((l, i) => ({ ...l, order: i })),
-  });
+  const buildCreateBody = (): CreatePageRequest => {
+    const body: CreatePageRequest = {
+      slug: form.slug,
+      displayName: form.displayName.trim(),
+      bio: form.bio,
+      theme: form.theme,
+      template: form.template,
+      accentColor: form.accentColor,
+      links: form.links.map((l, i) => ({ ...l, order: i })),
+    };
+    if (form.avatarBase64) body.avatarBase64 = form.avatarBase64;
+    if (form.bannerBase64) body.bannerBase64 = form.bannerBase64;
+    return body;
+  };
 
   const buildUpdateBody = (): UpdatePageRequest => {
     const body: UpdatePageRequest = {
@@ -236,11 +282,14 @@ export function PageEditorPage() {
       displayName: form.displayName.trim(),
       bio: form.bio,
       theme: form.theme,
+      template: form.template,
       accentColor: form.accentColor,
       links: form.links.map((l, i) => ({ ...l, order: i })),
     };
     if (form.avatarBase64) body.avatarBase64 = form.avatarBase64;
     else if (form.avatarCleared) body.avatarBase64 = null;
+    if (form.bannerBase64) body.bannerBase64 = form.bannerBase64;
+    else if (form.bannerCleared) body.bannerBase64 = null;
     return body;
   };
 
@@ -314,6 +363,15 @@ export function PageEditorPage() {
     : form.avatarCleared
       ? null
       : form.avatarUrl;
+
+  const bannerPreviewSrc = form.bannerBase64
+    ? `data:image/*;base64,${form.bannerBase64}`
+    : form.bannerCleared
+      ? null
+      : form.bannerUrl;
+
+  const templateUsesBanner =
+    TEMPLATE_OPTIONS.find((t) => t.value === form.template)?.usesBanner ?? false;
 
   if (loading) {
     return (
@@ -463,7 +521,7 @@ export function PageEditorPage() {
           <h2 className="text-sm font-medium text-text-muted">Live preview</h2>
           <div className="rounded-xl border border-border overflow-hidden">
             <PublicPageView
-              page={buildPreviewPageShape(form, avatarPreviewSrc)}
+              page={buildPreviewPageShape(form, avatarPreviewSrc, bannerPreviewSrc)}
               interactive={false}
             />
           </div>
@@ -558,8 +616,32 @@ export function PageEditorPage() {
             </div>
           </div>
 
-          <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+          <div className="bg-surface border border-border rounded-xl p-5 space-y-5">
             <h2 className="font-semibold text-foreground">Appearance</h2>
+
+            <div className="space-y-2">
+              <span className="block text-sm font-medium text-foreground">Template</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {TEMPLATE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={form.template === opt.value}
+                    onClick={() => updateField('template', opt.value)}
+                    className={`text-left rounded-lg border p-3 transition-colors cursor-pointer ${
+                      form.template === opt.value
+                        ? 'border-accent bg-accent/5'
+                        : 'border-border bg-muted hover:border-accent/50'
+                    }`}
+                  >
+                    <TemplateThumb variant={opt.value} accent={form.accentColor} />
+                    <p className="mt-2 text-sm font-medium text-foreground">{opt.name}</p>
+                    <p className="text-xs text-text-muted leading-snug">{opt.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="space-y-1.5">
               <span className="block text-sm font-medium text-foreground">Theme</span>
@@ -607,6 +689,24 @@ export function PageEditorPage() {
                   aria-label="Accent color hex"
                 />
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="flex items-baseline justify-between text-sm font-medium text-foreground">
+                <span>Banner image <span className="text-text-muted font-normal">(optional)</span></span>
+                {!templateUsesBanner && form.template === 'classic' && (
+                  <span className="text-xs text-text-muted font-normal">Classic ignores the banner</span>
+                )}
+              </span>
+              <BannerUploader
+                previewSrc={bannerPreviewSrc}
+                onChange={(base64) =>
+                  setForm((f) => ({ ...f, bannerBase64: base64, bannerCleared: false }))
+                }
+                onRemove={() =>
+                  setForm((f) => ({ ...f, bannerBase64: null, bannerCleared: true }))
+                }
+              />
             </div>
           </div>
 
@@ -679,5 +779,48 @@ export function PageEditorPage() {
         onCancel={() => !deleting && setConfirmDelete(false)}
       />
     </div>
+  );
+}
+
+/**
+ * Tiny visual thumbnail for the template picker. Pure SVG, hints at the
+ * layout each template produces without rendering a full PublicPageView.
+ */
+function TemplateThumb({ variant, accent }: { variant: PageTemplate; accent: string }) {
+  if (variant === 'spotlight') {
+    return (
+      <svg viewBox="0 0 80 56" className="w-full h-12 rounded-md bg-[#0B1120]">
+        <rect x="0" y="0" width="80" height="22" fill={accent} opacity="0.7" />
+        <circle cx="40" cy="22" r="7" fill="#F8FAFC" stroke={accent} strokeWidth="1.5" />
+        <rect x="20" y="34" width="40" height="3" rx="1.5" fill="#F8FAFC" opacity="0.5" />
+        <rect x="14" y="42" width="52" height="4" rx="2" fill="#F8FAFC" opacity="0.15" />
+        <rect x="14" y="48" width="52" height="4" rx="2" fill="#F8FAFC" opacity="0.15" />
+      </svg>
+    );
+  }
+  if (variant === 'marquee') {
+    return (
+      <svg viewBox="0 0 80 56" className="w-full h-12 rounded-md overflow-hidden">
+        <defs>
+          <linearGradient id="mg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={accent} />
+            <stop offset="100%" stopColor="#06070C" />
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="80" height="56" fill="url(#mg)" />
+        <circle cx="40" cy="20" r="7" fill={accent} stroke="#FFF" strokeWidth="1" />
+        <rect x="14" y="32" width="52" height="6" rx="3" fill={accent} />
+        <rect x="14" y="42" width="52" height="6" rx="3" fill={accent} opacity="0.85" />
+      </svg>
+    );
+  }
+  // classic
+  return (
+    <svg viewBox="0 0 80 56" className="w-full h-12 rounded-md bg-[#0F172A]">
+      <circle cx="40" cy="14" r="6" fill="#F8FAFC" stroke={accent} strokeWidth="1.2" />
+      <rect x="22" y="24" width="36" height="3" rx="1.5" fill="#F8FAFC" opacity="0.7" />
+      <rect x="14" y="34" width="52" height="5" rx="2" fill="none" stroke={accent} strokeWidth="1" />
+      <rect x="14" y="42" width="52" height="5" rx="2" fill="none" stroke={accent} strokeWidth="1" />
+    </svg>
   );
 }

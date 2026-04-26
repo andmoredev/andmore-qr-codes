@@ -28,6 +28,8 @@ async function serializePage(pageItem) {
   for (const [k, v] of Object.entries(pageItem)) {
     if (!INTERNAL_FIELDS.has(k)) out[k] = v;
   }
+  // Default the new template field for legacy rows.
+  if (!out.template) out.template = 'classic';
   if (pageItem.avatarKey && bucket) {
     try {
       out.avatarUrl = await getSignedUrl(
@@ -38,6 +40,17 @@ async function serializePage(pageItem) {
     } catch (err) {
       // Presigning should not block the response — emit without a URL.
       console.warn('Failed to presign avatar URL', err);
+    }
+  }
+  if (pageItem.bannerKey && bucket) {
+    try {
+      out.bannerUrl = await getSignedUrl(
+        s3,
+        new GetObjectCommand({ Bucket: bucket, Key: pageItem.bannerKey }),
+        { expiresIn: AVATAR_URL_TTL_SECONDS },
+      );
+    } catch (err) {
+      console.warn('Failed to presign banner URL', err);
     }
   }
   return out;

@@ -15,6 +15,7 @@ export interface LinkItem {
 }
 
 export type Theme = 'light' | 'dark';
+export type PageTemplate = 'classic' | 'spotlight' | 'marquee';
 
 export interface LinkPage {
   pageId: string;
@@ -23,7 +24,9 @@ export interface LinkPage {
   displayName: string;
   bio: string;
   avatarKey?: string;
+  bannerKey?: string;
   theme: Theme;
+  template: PageTemplate;
   accentColor: string;  // hex, e.g. '#22C55E'
   links: LinkItem[];
   status: 'draft' | 'published';
@@ -112,7 +115,9 @@ export interface PublicPage {
   displayName: string;
   bio: string;
   avatarUrl?: string;
+  bannerUrl?: string;
   theme: Theme;
+  template: PageTemplate;
   accentColor: string;
   links: Array<{
     linkKey: string;
