@@ -38,6 +38,14 @@ async function buildPublicPagePayload(page) {
       )
     : null;
 
+  const bannerUrl = page.bannerKey && bucket
+    ? await getSignedUrl(
+        s3,
+        new GetObjectCommand({ Bucket: bucket, Key: page.bannerKey }),
+        { expiresIn: AVATAR_URL_TTL_SECONDS }
+      )
+    : null;
+
   const links = Array.isArray(page.links) ? [...page.links] : [];
   links.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
@@ -46,7 +54,9 @@ async function buildPublicPagePayload(page) {
     displayName: page.displayName,
     bio: page.bio ?? '',
     avatarUrl,
+    bannerUrl,
     theme: page.theme,
+    template: page.template ?? 'classic',
     accentColor: page.accentColor,
     links: links.map((link) => ({
       linkKey: link.linkKey,

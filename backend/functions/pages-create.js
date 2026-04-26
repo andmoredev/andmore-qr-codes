@@ -15,10 +15,13 @@ const { validateSlug, isReserved } = require('./shared/slugs');
 const { normalizeLinks } = require('./shared/linkItems');
 const { reserveSlugAndPutPage, isSlugConflict } = require('./shared/repo/appTable');
 const { uploadAvatar } = require('./shared/avatar');
+const { uploadBanner } = require('./shared/banner');
 const { serializePage, buildVersionItem } = require('./shared/pageSerializer');
 
 const DEFAULT_THEME = 'dark';
 const DEFAULT_ACCENT = '#22C55E';
+const DEFAULT_TEMPLATE = 'classic';
+const VALID_TEMPLATES = new Set(['classic', 'spotlight', 'marquee']);
 
 exports.handler = async (event) => {
   const userId = event.requestContext?.authorizer?.claims?.sub;
@@ -45,6 +48,14 @@ exports.handler = async (event) => {
   const theme = body.theme === 'light' || body.theme === 'dark' ? body.theme : DEFAULT_THEME;
   const accentColor = typeof body.accentColor === 'string' ? body.accentColor : DEFAULT_ACCENT;
 
+  let template = DEFAULT_TEMPLATE;
+  if (body.template !== undefined) {
+    if (typeof body.template !== 'string' || !VALID_TEMPLATES.has(body.template)) {
+      return respond(400, { error: 'template must be one of: classic, spotlight, marquee' });
+    }
+    template = body.template;
+  }
+
   const { items: links, error: linksError } = normalizeLinks(body.links);
   if (linksError) return respond(400, { error: linksError });
 
@@ -58,6 +69,7 @@ exports.handler = async (event) => {
     displayName,
     bio,
     theme,
+    template,
     accentColor,
     links,
     status: 'draft',
@@ -78,6 +90,21 @@ exports.handler = async (event) => {
     } catch (err) {
       console.error('avatar upload failed', err);
       return respond(500, { error: 'Failed to upload avatar' });
+    }
+  }
+
+  // Optional banner upload.
+  if (typeof body.bannerBase64 === 'string' && body.bannerBase64.length > 0) {
+    try {
+      pageItem.bannerKey = await uploadBanner({
+        userId,
+        pageId,
+        version: 1,
+        base64: body.bannerBase64,
+      });
+    } catch (err) {
+      console.error('banner upload failed', err);
+      return respond(500, { error: 'Failed to upload banner' });
     }
   }
 

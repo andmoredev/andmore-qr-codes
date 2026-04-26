@@ -620,7 +620,7 @@ components:
 
     LinkPage:
       type: object
-      required: [pageId, userId, slug, displayName, bio, theme, accentColor, links, status, currentVersion, createdAt, updatedAt]
+      required: [pageId, userId, slug, displayName, bio, theme, template, accentColor, links, status, currentVersion, createdAt, updatedAt]
       properties:
         pageId: { type: string }
         userId: { type: string }
@@ -628,7 +628,9 @@ components:
         displayName: { type: string }
         bio: { type: string }
         avatarUrl: { type: string, format: uri, nullable: true }
+        bannerUrl: { type: string, format: uri, nullable: true }
         theme: { type: string, enum: [light, dark] }
+        template: { type: string, enum: [classic, spotlight, marquee] }
         accentColor: { type: string }
         links: { type: array, items: { $ref: '#/components/schemas/LinkItem' } }
         status: { type: string, enum: [draft, published] }
@@ -649,7 +651,10 @@ components:
         displayName: { type: string }
         bio: { type: string }
         theme: { type: string, enum: [light, dark], default: dark }
+        template: { type: string, enum: [classic, spotlight, marquee], default: classic }
         accentColor: { type: string, default: '#22C55E' }
+        avatarBase64: { type: string, nullable: true, description: Base64 PNG/JPEG avatar }
+        bannerBase64: { type: string, nullable: true, description: Base64 PNG/JPEG banner image (used by spotlight/marquee templates) }
         links: { type: array, items: { $ref: '#/components/schemas/LinkItem' } }
 
     UpdatePageRequest:
@@ -658,8 +663,10 @@ components:
         slug: { type: string }
         displayName: { type: string }
         bio: { type: string }
-        avatarBase64: { type: string, nullable: true, description: Base64 PNG/JPEG avatar }
+        avatarBase64: { type: string, nullable: true, description: Base64 PNG/JPEG avatar (null clears) }
+        bannerBase64: { type: string, nullable: true, description: Base64 PNG/JPEG banner (null clears) }
         theme: { type: string, enum: [light, dark] }
+        template: { type: string, enum: [classic, spotlight, marquee] }
         accentColor: { type: string }
         links: { type: array, items: { $ref: '#/components/schemas/LinkItem' } }
 
@@ -718,13 +725,15 @@ components:
 
     PublicPage:
       type: object
-      required: [slug, displayName, theme, accentColor, links]
+      required: [slug, displayName, theme, template, accentColor, links]
       properties:
         slug: { type: string }
         displayName: { type: string }
         bio: { type: string }
         avatarUrl: { type: string, format: uri, nullable: true }
+        bannerUrl: { type: string, format: uri, nullable: true }
         theme: { type: string, enum: [light, dark] }
+        template: { type: string, enum: [classic, spotlight, marquee] }
         accentColor: { type: string }
         links:
           type: array

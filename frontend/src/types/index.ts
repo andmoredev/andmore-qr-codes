@@ -16,6 +16,7 @@ export interface LinkItem {
 }
 
 export type Theme = 'light' | 'dark';
+export type PageTemplate = 'classic' | 'spotlight' | 'marquee';
 
 export interface LinkPage {
   pageId: string;
@@ -24,7 +25,9 @@ export interface LinkPage {
   displayName: string;
   bio: string;
   avatarUrl?: string | null;
+  bannerUrl?: string | null;
   theme: Theme;
+  template: PageTemplate;
   accentColor: string;
   links: LinkItem[];
   status: 'draft' | 'published';
@@ -91,7 +94,9 @@ export interface PublicPage {
   displayName: string;
   bio: string;
   avatarUrl?: string | null;
+  bannerUrl?: string | null;
   theme: Theme;
+  template: PageTemplate;
   accentColor: string;
   links: Array<{
     linkKey: string;
@@ -125,7 +130,10 @@ export interface CreatePageRequest {
   displayName: string;
   bio?: string;
   theme?: Theme;
+  template?: PageTemplate;
   accentColor?: string;
+  avatarBase64?: string;
+  bannerBase64?: string;
   links?: LinkItem[];
 }
 
@@ -134,7 +142,9 @@ export interface UpdatePageRequest {
   displayName?: string;
   bio?: string;
   avatarBase64?: string | null;
+  bannerBase64?: string | null;
   theme?: Theme;
+  template?: PageTemplate;
   accentColor?: string;
   links?: LinkItem[];
 }
